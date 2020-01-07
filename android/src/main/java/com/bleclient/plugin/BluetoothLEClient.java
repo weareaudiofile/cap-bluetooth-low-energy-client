@@ -512,7 +512,7 @@ public class BluetoothLEClient extends Plugin {
                 .build();
 
 
-        ArrayList<UUID> uuids = getServiceUuids(call.getArray(keyServices));
+        List<UUID> uuids = getServiceUuids(call.getArray(keyServices));
 
         List<ScanFilter> filters = new ArrayList<ScanFilter>();
 
@@ -1373,23 +1373,56 @@ public class BluetoothLEClient extends Plugin {
 
     }
 
-    private ArrayList<UUID> getServiceUuids(JSArray serviceUuidArray) {
+    private List<UUID> getServiceUuids(JSArray serviceUuidArray) {
 
 
-        ArrayList<UUID> serviceUuids = new ArrayList<>();
+        ArrayList<UUID> emptyList = new ArrayList<>();
 
         if (serviceUuidArray == null) {
-            return serviceUuids;
+            return emptyList;
         }
-
-        List<Integer> uuidList;
 
         try {
-            uuidList = serviceUuidArray.toList();
-        } catch (JSONException e) {
+            return getServiceUuidsFromIntegers(serviceUuidArray);
+        } catch (Exception e) {
+            // fallthrough
+        }
+
+        try {
+            return getServiceUuidsFromStrings(serviceUuidArray);
+        } catch (JSONException ee) {
             Log.e(getLogTag(), "Error while converting JSArray to List");
+            return emptyList;
+        } catch (IllegalArgumentException eee) {
+            Log.e(getLogTag(), "Invalid uuid string");
+            return emptyList;
+        }
+    }
+
+    private List<UUID> getServiceUuidsFromStrings(JSArray serviceUuidArray) throws JSONException {
+        List<UUID> serviceUuids = new ArrayList<>();
+        List<String> uuidList = serviceUuidArray.toList();
+
+        if (!(uuidList.size() > 0)) {
+            Log.i(getLogTag(), "No uuids given");
             return serviceUuids;
         }
+
+        for (String uuid : uuidList) {
+
+            UUID uuid128 = get128BitUUID(uuid);
+
+            if (uuid128 != null) {
+                serviceUuids.add(uuid128);
+            }
+        }
+
+        return serviceUuids;
+    }
+
+    private List<UUID> getServiceUuidsFromIntegers(JSArray serviceUuidArray) throws JSONException {
+        List<UUID> serviceUuids = new ArrayList<>();
+        List<Integer> uuidList = serviceUuidArray.toList();
 
         if (!(uuidList.size() > 0)) {
             Log.i(getLogTag(), "No uuids given");
@@ -1438,6 +1471,10 @@ public class BluetoothLEClient extends Plugin {
         return UUID.fromString(uuidString);
 
 
+    }
+
+    private UUID get128BitUUID(String uuid) {
+        return UUID.fromString(uuid);
     }
 
     private int get16BitUUID(UUID uuid) {
