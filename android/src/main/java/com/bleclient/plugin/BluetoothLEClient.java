@@ -575,7 +575,7 @@ public class BluetoothLEClient extends Plugin {
         bleScanner.startScan(filters, settings, scanCallback);
 
         Handler handler = new Handler();
-        handler.postDelayed(this::stopScan, 2000);
+        handler.postDelayed(this::stopScan, 30000);
         saveCall(call);
     }
 
