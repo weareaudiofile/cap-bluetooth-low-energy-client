@@ -282,7 +282,7 @@ public class BluetoothLEClient extends Plugin {
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 byte[] characteristicValue = characteristic.getValue();
-                addProperty(ret, keyValue, JSArray.from(characteristicValue));
+                addProperty(ret, keyValue, jsByteArray(characteristicValue));
                 call.resolve(ret);
             } else {
                 call.error(keyErrorValueRead);
@@ -316,7 +316,7 @@ public class BluetoothLEClient extends Plugin {
             if (status == BluetoothGatt.GATT_SUCCESS) {
 
                 byte[] value = characteristic.getValue();
-                addProperty(ret, keyValue, JSArray.from(value));
+                addProperty(ret, keyValue, jsByteArray(value));
 
             } else {
                 call.error(keyErrorValueWrite);
@@ -344,7 +344,7 @@ public class BluetoothLEClient extends Plugin {
             }
 
             JSObject ret = new JSObject();
-            addProperty(ret, keyValue, JSArray.from(characteristicValue));
+            addProperty(ret, keyValue, jsByteArray(characteristicValue));
 
             notifyListeners(characteristic16BitUuid.toString(), ret);
         }
@@ -372,7 +372,7 @@ public class BluetoothLEClient extends Plugin {
                 JSObject ret = new JSObject();
 
                 byte[] value = descriptor.getValue();
-                addProperty(ret, keyValue, JSArray.from(value));
+                addProperty(ret, keyValue, jsByteArray(value));
 
                 call.resolve(ret);
             } else {
@@ -407,7 +407,7 @@ public class BluetoothLEClient extends Plugin {
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
 
-                addProperty(ret, keyValue, JSArray.from(value));
+                addProperty(ret, keyValue, jsByteArray(value));
                 call.resolve(ret);
 
             } else {
@@ -1420,6 +1420,16 @@ public class BluetoothLEClient extends Plugin {
             call.release(getBridge());
         }
 
+    }
+
+    private JSArray jsByteArray(byte[] bytes) {
+        int[] ints = new int[bytes.length];
+
+        for (int i=0; i<bytes.length; i++) {
+            ints[i] = bytes[i] & 0xff;
+        }
+
+        return JSArray.from(ints);
     }
 
     private AnyUuid getUuid(PluginCall call, String key) {
