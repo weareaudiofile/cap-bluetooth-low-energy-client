@@ -14,6 +14,7 @@ import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
@@ -34,6 +35,7 @@ import com.getcapacitor.PluginMethod;
 
 import org.json.JSONException;
 
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -434,12 +436,43 @@ public class BluetoothLEClient extends Plugin {
     };
 
     private class BLEScanCallback extends ScanCallback {
+        private List<ParcelUuid> serviceUuids;
+
+        public BLEScanCallback(List<UUID> serviceUuids) {
+            List<ParcelUuid> parcelUuids = new ArrayList<>();
+
+            for (UUID uuid : serviceUuids) {
+                parcelUuids.add(new ParcelUuid(uuid));
+            }
+
+            this.serviceUuids = parcelUuids;
+        }
 
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
 
             BluetoothDevice device = result.getDevice();
+            ScanRecord scanRecord = result.getScanRecord();
+
+            List<ParcelUuid> services = scanRecord.getServiceUuids();
+
+            if (this.serviceUuids.size() > 0) {
+                if (services == null) {
+                    Log.d(getLogTag(), "skipping " + device.getAddress() + ", ad contains no services");
+                    return;
+                } else {
+                    Log.d(getLogTag(), device.getAddress() + " advertises " + services.toString());
+                }
+
+                for (ParcelUuid uuid : this.serviceUuids) {
+                    if (!services.contains(uuid)) {
+                        Log.d(getLogTag(), "skipping " + device.getAddress() + ", ad missing " + uuid.toString());
+                        return;
+                    }
+                    Log.d(getLogTag(), device.getAddress() + " advertises " + uuid.toString());
+                }
+            }
 
             if (!availableDevices.containsKey(device.getAddress())) {
                 availableDevices.put(device.getAddress(), device);
@@ -505,14 +538,16 @@ public class BluetoothLEClient extends Plugin {
         bleScanner = bluetoothAdapter.getBluetoothLeScanner();
         availableDevices = new HashMap<String, BluetoothDevice>();
 
-        scanCallback = new BLEScanCallback();
-
         ScanSettings settings = new ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
                 .build();
 
 
         List<UUID> uuids = getServiceUuids(call.getArray(keyServices));
+
+        Log.d(getLogTag(), "uuids: " + uuids.toString());
+
+        scanCallback = new BLEScanCallback(uuids);
 
         List<ScanFilter> filters = new ArrayList<ScanFilter>();
 
@@ -522,6 +557,8 @@ public class BluetoothLEClient extends Plugin {
         }
 
         filters = new ArrayList<>();
+
+        Log.i(getLogTag(),"filters: " + filters.toString());
 
         bleScanner.startScan(filters, settings, scanCallback);
 
