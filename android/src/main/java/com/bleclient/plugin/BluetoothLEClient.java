@@ -977,7 +977,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        String value = call.getString(keyValue);
+        JSArray value = call.getArray(keyValue);
 
         if (value == null) {
             call.reject(keyErrorValueMissing);
@@ -1513,6 +1513,24 @@ public class BluetoothLEClient extends Plugin {
 
         if (bytes == null || bytes.length == 0) {
             return null;
+        }
+
+        return bytes;
+    }
+
+    private byte[] toByteArray(JSArray arrayValue) {
+        if (arrayValue == null) {
+            return null;
+        }
+
+        byte[] bytes = new byte[arrayValue.length()];
+
+        for (int i=0; i<bytes.length; i++) {
+            try {
+                bytes[i] = (byte) arrayValue.get(i);
+            } catch (JSONException e) {
+                bytes[i] = 0;
+            }
         }
 
         return bytes;
