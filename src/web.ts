@@ -194,8 +194,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
       const gattService: BluetoothRemoteGATTService = await gatt.getPrimaryService(service);
       const gattCharacteristic: BluetoothRemoteGATTCharacteristic = await gattService.getCharacteristic(characteristic);
 
-      const encoder = new TextEncoder();
-      const toWrite = encoder.encode(value);
+      const toWrite = new Uint8Array(value)
 
       await gattCharacteristic.writeValue(toWrite)
 
@@ -256,8 +255,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
       const gattCharacteristic: BluetoothRemoteGATTCharacteristic = await gattService.getCharacteristic(characteristic);
       const gattDescriptor: BluetoothRemoteGATTDescriptor = await gattCharacteristic.getDescriptor(descriptor);
 
-      const encoder = new TextEncoder();
-      const toWrite = encoder.encode(value);
+      const toWrite = new Uint8Array(value)
 
       await gattDescriptor.writeValue(toWrite);
 
