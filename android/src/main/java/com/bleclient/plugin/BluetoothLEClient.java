@@ -977,7 +977,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        JSArray value = call.getArray(keyValue);
+        String value = call.getString(keyValue);
 
         if (value == null) {
             call.reject(keyErrorValueMissing);
