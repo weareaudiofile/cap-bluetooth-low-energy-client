@@ -83,6 +83,8 @@ public class BluetoothLEClient extends Plugin {
     static final String keyCharacteristic = "characteristic";
     static final String keyDescriptor = "descriptor";
     static final String keyValue = "value";
+    static final String keyTimeout = "timeout";
+    static final String keyStopOnFirstDevice = "stopOnFirstDevice";
     static final String keyDiscoveryState = "discovered";
     static final String keySuccess = "success";
     static final String keyDeviceType = "type";
@@ -126,7 +128,7 @@ public class BluetoothLEClient extends Plugin {
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner bleScanner;
 
-    private ScanCallback scanCallback;
+    private BLEScanCallback scanCallback;
     private HashMap<String, BluetoothDevice> availableDevices = new HashMap<String, BluetoothDevice>();
     private HashMap<String, Object> connections = new HashMap<>();
 
@@ -219,6 +221,14 @@ public class BluetoothLEClient extends Plugin {
 
                     return;
 
+                } else if (connection.get(keyOperationDiscover) != null) {
+
+                    PluginCall call = (PluginCall) connection.get(keyOperationDiscover);
+
+                    call.error("Unable to discover services for Peripheral");
+                    connection.remove(keyOperationDiscover);
+
+                    return;
                 } else {
 
                     Log.e(getLogTag(), "GATT operation unsuccessfull");
@@ -437,8 +447,17 @@ public class BluetoothLEClient extends Plugin {
 
     private class BLEScanCallback extends ScanCallback {
         private List<ParcelUuid> serviceUuids;
+        private Runnable timeoutCallback;
+        private Integer timeout;
+        private Boolean stopOnFirstDevice;
+        private Handler handler;
 
-        public BLEScanCallback(List<UUID> serviceUuids) {
+        public BLEScanCallback(List<UUID> serviceUuids, Runnable timeoutCallback, Integer timeout, Boolean stopOnFirstDevice) {
+            this.timeoutCallback = timeoutCallback;
+            this.timeout = timeout;
+            this.stopOnFirstDevice = stopOnFirstDevice;
+            this.handler = new Handler();
+
             List<ParcelUuid> parcelUuids = new ArrayList<>();
 
             for (UUID uuid : serviceUuids) {
@@ -446,6 +465,10 @@ public class BluetoothLEClient extends Plugin {
             }
 
             this.serviceUuids = parcelUuids;
+        }
+
+        public void startScanTimeout() {
+            this.handler.postDelayed(this.timeoutCallback, this.timeout);
         }
 
         @Override
@@ -476,6 +499,12 @@ public class BluetoothLEClient extends Plugin {
 
             if (!availableDevices.containsKey(device.getAddress())) {
                 availableDevices.put(device.getAddress(), device);
+            }
+
+            if (stopOnFirstDevice && availableDevices.size() > 0) {
+                Log.d(getLogTag(), "stopping discovery early");
+                this.handler.removeCallbacks(this.timeoutCallback);
+                this.handler.post(this.timeoutCallback);
             }
 
             return;
@@ -556,10 +585,10 @@ public class BluetoothLEClient extends Plugin {
 
 
         List<UUID> uuids = getServiceUuids(call.getArray(keyServices));
+        Integer timeout = call.getInt(keyTimeout, 2000);
+        Boolean stopOnFirstDevice = call.getBoolean(keyStopOnFirstDevice, false);
 
-        Log.d(getLogTag(), "uuids: " + uuids.toString());
-
-        scanCallback = new BLEScanCallback(uuids);
+        scanCallback = new BLEScanCallback(uuids, this::stopScan, 30000, true);
 
         List<ScanFilter> filters = new ArrayList<ScanFilter>();
 
@@ -573,9 +602,8 @@ public class BluetoothLEClient extends Plugin {
         Log.i(getLogTag(),"filters: " + filters.toString());
 
         bleScanner.startScan(filters, settings, scanCallback);
+        scanCallback.startScanTimeout();
 
-        Handler handler = new Handler();
-        handler.postDelayed(this::stopScan, 30000);
         saveCall(call);
     }
 

@@ -71,6 +71,9 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
     return {enabled: true};
   }
 
+  /**
+   * Ignores timeout and stopAfterFirstDevice options since there is no proper way to timeout or detect the first device from the web browser
+   */
   async scan(options: BluetoothGATTScanOptions): Promise<BluetoothGATTScanResults>{
 
     if(!options){
