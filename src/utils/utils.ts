@@ -1,5 +1,7 @@
 import {BluetoothGATTByteData} from "../definitions";
 
+export * from "./base64";
+
 export const get16BitUUID = (uuid: string) => {
     const prefix = "0x";
     const id = uuid.substr(4,4);
