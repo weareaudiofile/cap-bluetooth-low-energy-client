@@ -1,7 +1,6 @@
 package com.bleclient.plugin;
 
 import android.Manifest;
-import android.app.Instrumentation;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -22,7 +21,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.ParcelUuid;
-import android.preference.PreferenceManager;
 import android.util.Base64;
 import android.util.Log;
 
@@ -35,12 +33,12 @@ import com.getcapacitor.PluginMethod;
 
 import org.json.JSONException;
 
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 @NativePlugin(
         permissions = {
@@ -113,6 +111,7 @@ public class BluetoothLEClient extends Plugin {
     static final String keyErrorValueSet = "Failed to set value";
     static final String keyErrorValueWrite = "Failed to write value";
     static final String keyErrorValueRead = "Failed to read value";
+    static final String keyErrorValueDisconnected = "Device is disconnected";
 
 
     static final String keyOperationConnect = "connectCallback";
@@ -131,6 +130,33 @@ public class BluetoothLEClient extends Plugin {
     private BLEScanCallback scanCallback;
     private HashMap<String, BluetoothDevice> availableDevices = new HashMap<String, BluetoothDevice>();
     private HashMap<String, Object> connections = new HashMap<>();
+
+    private enum BLECommandType {
+        write, read, discoverServices
+    }
+
+    private final class BLECommand {
+        BLECommandType type;
+        BluetoothGatt gatt;
+        BluetoothGattCharacteristic characteristic;
+        PluginCall call;
+        byte[] data;
+
+        BLECommand(PluginCall call, BLECommandType type, BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] data) {
+            this.call = call;
+            this.type = type;
+            this.gatt = gatt;
+            this.characteristic = characteristic;
+            this.data = data;
+        }
+    }
+
+    private ConcurrentLinkedQueue<BLECommand> queue = new ConcurrentLinkedQueue<BLECommand>();
+    Handler commandHandler = new Handler();
+    BLECommand commandInProgress;
+    private Boolean queueIsBusy() {
+        return commandInProgress != null;
+    }
 
     private BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
         @Override
@@ -187,21 +213,41 @@ public class BluetoothLEClient extends Plugin {
 
                         PluginCall call = (PluginCall) connection.get(keyOperationDisconnect);
 
-                        if (call == null) {
-                            break;
+                        if (call != null) {
+                            JSObject ret = new JSObject();
+                            addProperty(ret, keyDisconnected, true);
+                            call.resolve(ret);
                         }
 
-                        JSObject ret = new JSObject();
-                        addProperty(ret, keyDisconnected, true);
-                        call.resolve(ret);
-
                         connection.remove(keyOperationDisconnect);
+
+                        // If disconnected, all stored calls must error
+                        for (Object value : connection.values()) {
+                            if (value instanceof PluginCall) {
+                                PluginCall storedCall = (PluginCall) value;
+                                storedCall.error(keyErrorValueDisconnected);
+                            }
+                        }
+
                         connections.remove(address);
+
+                        JSObject data = new JSObject();
+                        data.put(keyAddress, address);
+                        notifyListeners("deviceDisconnected", data);
                         break;
                     }
                 }
 
             } else {
+
+
+                // If disconnected, all stored calls must error
+                for (Object value : connection.values()) {
+                    if (value instanceof PluginCall) {
+                        PluginCall storedCall = (PluginCall) value;
+                        storedCall.error(keyErrorValueDisconnected);
+                    }
+                }
 
 
                 if (connection.get(keyOperationConnect) != null) {
@@ -241,16 +287,34 @@ public class BluetoothLEClient extends Plugin {
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            BLECommandType expectedType = BLECommandType.discoverServices;
+
+            if (commandInProgress == null) {
+                Log.e(getLogTag(), "Expected command in progress to be " + expectedType + ", but was null");
+                return;
+            }
+
+            if (commandInProgress.type != expectedType) {
+                Log.e(getLogTag(), "Expected command in progress to be " + expectedType + ", but got " + commandInProgress.type);
+                return;
+            }
 
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
 
             HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
 
-            PluginCall call = (PluginCall) connection.get(keyOperationDiscover);
+            if (connection == null) {
+                Log.e(getLogTag(), "No connection");
+                commandInProgress = null;
+                return;
+            }
 
-            if (connection == null || call == null) {
-                Log.e(getLogTag(), "No connection or saved call");
+            PluginCall call = commandInProgress.call;
+
+            if (call == null) {
+                Log.e(getLogTag(), "No saved call");
+                commandInProgress = null;
                 return;
             }
 
@@ -264,11 +328,22 @@ public class BluetoothLEClient extends Plugin {
                 call.error("Service discovery unsuccessful");
             }
 
-            connection.remove(keyOperationDiscover);
+            commandInProgress = null;
         }
 
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            BLECommandType expectedType = BLECommandType.read;
+
+            if (commandInProgress == null) {
+                Log.e(getLogTag(), "Expected command in progress to be " + expectedType + ", but was null");
+                return;
+            }
+
+            if (commandInProgress.type != expectedType) {
+                Log.e(getLogTag(), "Expected command in progress to be " + expectedType + ", but got " + commandInProgress.type);
+                return;
+            }
 
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
@@ -277,14 +352,15 @@ public class BluetoothLEClient extends Plugin {
 
             if (connection == null) {
                 Log.e(getLogTag(), "No connection found");
+                commandInProgress = null;
                 return;
             }
 
-            PluginCall call = (PluginCall) connection.get(keyOperationRead);
-            connection.remove(keyOperationRead);
+            PluginCall call = commandInProgress.call;
 
             if (call == null) {
                 Log.e(getLogTag(), "No callback for operation found");
+                commandInProgress = null;
                 return;
             }
 
@@ -298,10 +374,27 @@ public class BluetoothLEClient extends Plugin {
                 call.error(keyErrorValueRead);
             }
 
+            commandInProgress = null;
         }
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            handleWrite(gatt, characteristic, status);
+            completedCommand();
+        }
+
+        private void handleWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            BLECommandType expectedType = BLECommandType.write;
+
+            if (commandInProgress == null) {
+                Log.e(getLogTag(), "Expected command in progress to be " + expectedType + ", but was null");
+                return;
+            }
+
+            if (commandInProgress.type != expectedType) {
+                Log.e(getLogTag(), "Expected command in progress to be " + expectedType + ", but got " + commandInProgress.type);
+                return;
+            }
 
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
@@ -313,21 +406,18 @@ public class BluetoothLEClient extends Plugin {
                 return;
             }
 
-            PluginCall call = (PluginCall) connection.get(keyOperationWrite);
-            connection.remove(keyOperationWrite);
+            PluginCall call = commandInProgress.call;
 
             if (call == null) {
                 Log.e(getLogTag(), "No callback for operation found");
                 return;
             }
 
-            JSObject ret = new JSObject();
-
             if (status == BluetoothGatt.GATT_SUCCESS) {
-
+                JSObject ret = new JSObject();
                 byte[] value = characteristic.getValue();
                 addProperty(ret, keyValue, jsByteArray(value));
-
+                commandInProgress.call.resolve(ret);
             } else {
                 call.error(keyErrorValueWrite);
             }
@@ -580,7 +670,7 @@ public class BluetoothLEClient extends Plugin {
         availableDevices = new HashMap<String, BluetoothDevice>();
 
         ScanSettings settings = new ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build();
 
 
@@ -705,15 +795,10 @@ public class BluetoothLEClient extends Plugin {
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
 
-        boolean discoveryStarted = gatt.discoverServices();
-
-        if (discoveryStarted) {
-            connection.put(keyDiscovered, SERVICES_DISCOVERING);
-            connection.put(keyOperationDiscover, call);
-        } else {
-            call.reject("Failed to start service discovery");
-        }
-
+        connection.put(keyDiscovered, SERVICES_DISCOVERING);
+        BLECommand command = new BLECommand(call, BLECommandType.discoverServices, gatt, null, null);
+        queue.add(command);
+        processQueue();
     }
 
     @PluginMethod()
@@ -943,17 +1028,9 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        connection.put(keyOperationRead, call);
-
-
-        boolean success = gatt.readCharacteristic(characteristic);
-
-        if (!success) {
-            call.error(keyErrorValueRead);
-            connection.remove(keyOperationRead);
-        }
-
-
+        BLECommand command = new BLECommand(call, BLECommandType.read, gatt, characteristic, null);
+        queue.add(command);
+        processQueue();
     }
 
     @PluginMethod()
@@ -1019,22 +1096,13 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        boolean valueSet = characteristic.setValue(toWrite);
+        Boolean withoutResponse = call.getBoolean(keyPropertyWriteWithoutResponse, false);
+        int writeType = withoutResponse ? BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE : BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT;
+        characteristic.setWriteType(writeType);
 
-        if (!valueSet) {
-            call.reject(keyErrorValueSet);
-            return;
-        }
-
-        connection.put(keyOperationWrite, call);
-
-        boolean success = gatt.writeCharacteristic(characteristic);
-
-        if (!success) {
-            call.error(keyErrorValueWrite);
-            connection.remove(keyOperationWrite);
-        }
-
+        BLECommand task = new BLECommand(call, BLECommandType.write, gatt, characteristic, toWrite);
+        queue.add(task);
+        processQueue();
     }
 
     @PluginMethod()
@@ -1278,6 +1346,107 @@ public class BluetoothLEClient extends Plugin {
 
         call.resolve(retCharacteristic);
 
+    }
+
+    private void processQueue() {
+        if (queueIsBusy()) {
+            return;
+        }
+
+        commandInProgress = queue.poll();
+
+        if (commandInProgress == null) {
+            return;
+        }
+
+        switch (commandInProgress.type) {
+            case write:
+                commandHandler.post(runnableWriteCommand(commandInProgress));
+                break;
+            case read:
+                commandHandler.post(runnableReadCommand(commandInProgress));
+                break;
+            case discoverServices:
+                commandHandler.post(runnableDiscoverServicesCommand(commandInProgress));
+                break;
+            default:
+                Log.e(getLogTag(), "Unknown command type " + commandInProgress.type);
+        }
+    }
+
+    private Runnable runnableDiscoverServicesCommand(BLECommand command) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    boolean discoveryStarted = command.gatt.discoverServices();
+
+                    if (!discoveryStarted) {
+                        command.call.reject("Failed to start service discovery");
+                    }
+
+                } catch (Exception e) {
+                    Log.d(getLogTag(), e.getMessage());
+                    command.call.error("Failed to start service discovery");
+                }
+            }
+        };
+    }
+
+    private Runnable runnableReadCommand(BLECommand command) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    boolean success = command.gatt.readCharacteristic(command.characteristic);
+
+                    if (!success) {
+                        command.call.error(keyErrorValueRead);
+                    }
+                } catch (Exception e) {
+                    Log.d(getLogTag(), e.getMessage());
+                    command.call.error(keyErrorValueRead);
+                }
+            }
+        };
+    }
+
+    // TODO: Handle write with response
+    private Runnable runnableWriteCommand(BLECommand command) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Log.d(getLogTag(), "writing data " + command.data);
+                    boolean valueSet = command.characteristic.setValue(command.data);
+
+                    if (!valueSet) {
+                        command.call.reject(keyErrorValueSet);
+                        completedCommand();
+                        return;
+                    }
+
+                    boolean success = command.gatt.writeCharacteristic(command.characteristic);
+
+                    if (!success) {
+                        command.call.error(keyErrorValueWrite);
+                        completedCommand();
+                        return;
+                    }
+
+                    // call resolved in onCharacteristicWrite()
+                } catch (Exception e) {
+                    Log.e(getLogTag(), e.getMessage());
+                    command.call.error(keyErrorValueWrite);
+                    completedCommand();
+                }
+            }
+        };
+    }
+
+    private void completedCommand() {
+        commandInProgress = null;
+        processQueue();
     }
 
 
