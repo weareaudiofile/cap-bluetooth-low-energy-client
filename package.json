@@ -33,7 +33,7 @@
     "android/*.properties",
     "android/*.pro",
     "android/src",
-    "CapBluetoothLowEnergyClient.podspec"
+    "*.podspec"
   ],
   "keywords": [
     "capacitor",
