@@ -23,9 +23,16 @@
     "typescript": "^3.2.4"
   },
   "files": [
+    "LICENSE",
     "dist/",
-    "ios/",
-    "android/",
+    "ios/Plugin*",
+    "ios/Podfile",
+    "android/*.iml",
+    "android/*.gradle",
+    "android/gradle*",
+    "android/*.properties",
+    "android/*.pro",
+    "android/src",
     "CapBluetoothLowEnergyClient.podspec"
   ],
   "keywords": [

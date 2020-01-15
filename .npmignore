@@ -6,6 +6,7 @@ node_modules/
 Pods
 Build
 xcuserdata
+DerivedData
 
 # macOS files
 .DS_Store
