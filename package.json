@@ -1,6 +1,6 @@
 {
-  "name": "cap-bluetooth-low-energy-client",
-  "version": "1.0.0",
+  "name": "@weareaudiofile/cap-bluetooth-low-energy-client",
+  "version": "1.0.1",
   "description": "Capacitor Bluetooth Low Energy Client Plugin",
   "main": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
@@ -11,7 +11,7 @@
     "watch": "tsc --watch",
     "prepublishOnly": "npm run build"
   },
-  "author": "robmarti",
+  "author": "robmarti, wasnotrice",
   "license": "MIT",
   "dependencies": {
     "@capacitor/core": "latest"
@@ -50,9 +50,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/robmarti/cap-bluetooth-low-energy-client.git"
+    "url": "https://github.com/weareaudiofile/cap-bluetooth-low-energy-client.git"
   },
   "bugs": {
-    "url": "https://github.com/robmarti/cap-bluetooth-low-energy-client.git/issues"
+    "url": "https://github.com/weareaudiofile/cap-bluetooth-low-energy-client.git/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   }
 }
