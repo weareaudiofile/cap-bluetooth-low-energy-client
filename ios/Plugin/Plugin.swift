@@ -2,7 +2,7 @@ import Foundation
 import Capacitor
 import CoreBluetooth
 
-enum Key: String {
+enum PluginKey: String {
     case characteristic = "characteristic"
     case connected = "connected"
     case devices = "devices"
@@ -30,7 +30,7 @@ enum CallType {
 }
 
 enum PluginError: Error {
-    case missingParameter(_ parameter: Key)
+    case missingParameter(_ parameter: PluginKey)
     case peripheralNotFound(id: String)
     case serviceNotFound(uuid: CBUUID)
     case characteristicNotFound(uuid: CBUUID)
@@ -55,39 +55,9 @@ enum PluginError: Error {
     }
 }
 
-extension CAPPluginCall {
-    func setValue(_ value: Any, forKey key: Key) {
-        setValue(value, forKey: key.rawValue)
-    }
+typealias ResolveData = [PluginKey: Any]
 
-    func getArray<T>(_ key: Key, _ type: T.Type) -> [T]? {
-        return getArray(key.rawValue, type)
-    }
-
-    func getBool(_ key: Key) -> Bool? {
-        return getBool(key.rawValue)
-    }
-
-    func getInt(_ key: Key) -> Int? {
-        return getInt(key.rawValue)
-    }
-
-    func getString(_ key: Key) -> String? {
-        return getString(key.rawValue)
-    }
-
-    func resolve(_ data: ResolveData) {
-        resolve(data.stringKeys())
-    }
-
-    func error(_ err: PluginError) {
-        error(err.errorDescription)
-    }
-}
-
-typealias ResolveData = [Key: Any]
-
-extension Dictionary where Dictionary.Key == Plugin.Key {
+extension Dictionary where Dictionary.Key == PluginKey {
     func stringKeys() -> PluginResultData {
         var result: PluginResultData = [:]
 
@@ -126,30 +96,27 @@ public class BluetoothLEClient: CAPPlugin {
 
     @objc func isAvailable(_ call: CAPPluginCall) {
         let isAvailable = manager.state != .unknown && manager.state != .unsupported
-        call.setValue(isAvailable, forKey: .isAvailable)
-        call.resolve()
+        resolve(call, [.isAvailable: isAvailable])
     }
 
     @objc func isEnabled(_ call: CAPPluginCall) {
         let isEnabled = manager.state != .unknown && manager.state != .unauthorized
-        call.setValue(isEnabled, forKey: .isEnabled)
-        call.resolve()
+        resolve(call, [.isEnabled: isEnabled])
     }
 
     @objc func enable(_ call: CAPPluginCall) {
         if manager.state == .poweredOn {
-            call.setValue(true, forKey: .enabled)
-            call.resolve()
+            resolve(call, [.enabled: true])
         }
 
         // TODO: Ask user to enable Bluetooth
     }
 
     @objc func scan(_ call: CAPPluginCall) {
-        let services: [CBUUID]? = call.getArray(.services, String.self)?.compactMap { CBUUID(string: $0) }
+        let services: [CBUUID]? = getArray(call, .services, String.self)?.compactMap { CBUUID(string: $0) }
 
-        let timeout = call.getInt(.timeout) ?? scanTimeout
-        stopOnFirstDevice = call.getBool(.stopOnFirstResult) ?? false
+        let timeout = getInt(call, .timeout) ?? scanTimeout
+        stopOnFirstDevice = getBool(call, .stopOnFirstResult) ?? false
 
         scanResults = []
 
@@ -161,13 +128,13 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func connect(_ call: CAPPluginCall) {
-        guard let id = call.getString(.id) else {
-            call.error(.missingParameter(.id))
+        guard let id = getString(call, .id) else {
+            error(call, .missingParameter(.id))
             return
         }
 
         guard let peripheral = getPeripheral(id) else {
-            call.error(.peripheralNotFound(id: id))
+            error(call, .peripheralNotFound(id: id))
             return
         }
 
@@ -177,13 +144,13 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func discover(_ call: CAPPluginCall) {
-        guard let id = call.getString(.id) else {
-            call.error(.missingParameter(.id))
+        guard let id = getString(call, .id) else {
+            error(call, .missingParameter(.id))
             return
         }
 
         guard let peripheral = getPeripheral(id) else {
-            call.error(.peripheralNotFound(id: id))
+            error(call, .peripheralNotFound(id: id))
             return
         }
 
@@ -193,13 +160,13 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func disconnect(_ call: CAPPluginCall) {
-        guard let id = call.getString(.id) else {
-            call.error(.missingParameter(.id))
+        guard let id = getString(call, .id) else {
+            error(call, .missingParameter(.id))
             return
         }
 
         guard let peripheral = getPeripheral(id) else {
-            call.error(.peripheralNotFound(id: id))
+            error(call, .peripheralNotFound(id: id))
             return
         }
 
@@ -209,33 +176,33 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func read(_ call: CAPPluginCall) {
-        guard let id = call.getString(.id) else {
-            call.error(.missingParameter(.id))
+        guard let id = getString(call, .id) else {
+            error(call, .missingParameter(.id))
             return
         }
 
         guard let serviceUuid = getUuid(call: call, key: .service) else {
-            call.error(.missingParameter(.service))
+            error(call, .missingParameter(.service))
             return
         }
 
         guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
-            call.error(.missingParameter(.service))
+            error(call, .missingParameter(.service))
             return
         }
 
         guard let peripheral = getPeripheral(id) else {
-            call.error(.peripheralNotFound(id: id))
+            error(call, .peripheralNotFound(id: id))
             return
         }
 
         guard let service = peripheralService(peripheral: peripheral, uuid: serviceUuid) else {
-            call.error(.serviceNotFound(uuid: serviceUuid))
+            error(call, .serviceNotFound(uuid: serviceUuid))
             return
         }
 
         guard let characteristic = serviceCharacteristic(service: service, uuid: characteristicUuid) else {
-            call.error(.characteristicNotFound(uuid: characteristicUuid))
+            error(call, .characteristicNotFound(uuid: characteristicUuid))
             return
         }
 
@@ -245,44 +212,44 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func write(_ call: CAPPluginCall) {
-        guard let id = call.getString(.id) else {
-            call.error(.missingParameter(.id))
+        guard let id = getString(call, .id) else {
+            error(call, .missingParameter(.id))
             return
         }
 
         guard let serviceUuid = getUuid(call: call, key: .service) else {
-            call.error(.missingParameter(.service))
+            error(call, .missingParameter(.service))
             return
         }
 
         guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
-            call.error(.missingParameter(.service))
+            error(call, .missingParameter(.service))
             return
         }
 
-        guard let value = call.getString(.value) else {
-            call.error(.missingParameter(.value))
+        guard let value = getString(call, .value) else {
+            error(call, .missingParameter(.value))
             return
         }
 
 
         guard let peripheral = getPeripheral(id) else {
-            call.error(.peripheralNotFound(id: id))
+            error(call, .peripheralNotFound(id: id))
             return
         }
 
         guard let service = peripheralService(peripheral: peripheral, uuid: serviceUuid) else {
-            call.error(.serviceNotFound(uuid: serviceUuid))
+            error(call, .serviceNotFound(uuid: serviceUuid))
             return
         }
 
         guard let characteristic = serviceCharacteristic(service: service, uuid: characteristicUuid) else {
-            call.error(.characteristicNotFound(uuid: characteristicUuid))
+            error(call, .characteristicNotFound(uuid: characteristicUuid))
             return
         }
 
         guard let data = decode(value) else {
-            call.error(.dataEncodingError)
+            error(call, .dataEncodingError)
             return
         }
 
@@ -292,41 +259,41 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func readDescriptor(_ call: CAPPluginCall) {
-        call.error(.notImplemented)
+        error(call, .notImplemented)
         return
     }
 
     @objc func writeDescriptor(_ call: CAPPluginCall) {
-        call.error(.notImplemented)
+        error(call, .notImplemented)
         return}
 
     @objc func getServices(_ call: CAPPluginCall) {
-        call.error(.notImplemented)
+        error(call, .notImplemented)
         return
     }
 
     @objc func getService(_ call: CAPPluginCall) {
-        call.error(.notImplemented)
+        error(call, .notImplemented)
         return
     }
 
     @objc func getCharacteristics(_ call: CAPPluginCall) {
-        call.error(.notImplemented)
+        error(call, .notImplemented)
         return
     }
 
     @objc func getCharacteristic(_ call: CAPPluginCall) {
-        call.error(.notImplemented)
+        error(call, .notImplemented)
         return
     }
 
     @objc func enableNotifications(_ call: CAPPluginCall) {
-        call.error(.notImplemented)
+        error(call, .notImplemented)
         return
     }
 
     @objc func disableNotifications(_ call: CAPPluginCall) {
-        call.error(.notImplemented)
+        error(call, .notImplemented)
         return
     }
 
@@ -343,7 +310,7 @@ public class BluetoothLEClient: CAPPlugin {
                 ]
             }
 
-            call.resolve([ .devices: devices ])
+            resolve(call, [ .devices: devices ])
         }
     }
 
@@ -361,12 +328,12 @@ public class BluetoothLEClient: CAPPlugin {
         return savedCalls.removeValue(forKey: type)
     }
 
-    private func getUuid(call: CAPPluginCall, key: Key) -> CBUUID? {
-        if let int = call.getInt(key) {
+    private func getUuid(call: CAPPluginCall, key: PluginKey) -> CBUUID? {
+        if let int = getInt(call, key) {
             return makeUuid(int)
         }
 
-        if let string = call.getString(key) {
+        if let string = getString(call, key) {
             return makeUuid(string)
         }
 
@@ -399,6 +366,34 @@ public class BluetoothLEClient: CAPPlugin {
 
     private func notifyListeners(_ event: String, data: ResolveData) {
         notifyListeners(event, data: data.stringKeys())
+    }
+}
+
+// MARK: - Call handling
+
+extension BluetoothLEClient {
+    func getArray<T>(_ call: CAPPluginCall, _ key: PluginKey, _ type: T.Type) -> [T]? {
+        return call.getArray(key.rawValue, type)
+    }
+
+    func getBool(_ call: CAPPluginCall, _ key: PluginKey) -> Bool? {
+        return call.getBool(key.rawValue)
+    }
+
+    func getInt(_ call: CAPPluginCall, _ key: PluginKey) -> Int? {
+        return call.getInt(key.rawValue)
+    }
+
+    func getString(_ call: CAPPluginCall, _ key: PluginKey) -> String? {
+        return call.getString(key.rawValue)
+    }
+
+    func resolve(_ call: CAPPluginCall, _ data: ResolveData) {
+        call.resolve(data.stringKeys())
+    }
+
+    func error(_ call: CAPPluginCall, _ err: PluginError) {
+        call.error(err.errorDescription)
     }
 }
 
@@ -441,7 +436,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
         connectedPeripherals[peripheral.identifier.uuidString] = peripheral
 
         if let call = popSavedCall(type: .connect) {
-            call.resolve([
+            resolve(call, [
                 .connected: true
             ])
         }
@@ -451,7 +446,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
         connectedPeripherals.removeValue(forKey: peripheral.identifier.uuidString)
 
         if let call = popSavedCall(type: .disconnect) {
-            call.resolve([
+            resolve(call, [
                 .disconnected: true
             ])
         }
@@ -467,7 +462,7 @@ extension BluetoothLEClient: CBPeripheralDelegate {
         }
 
         if let call = popSavedCall(type: .discover) {
-            call.resolve([
+            resolve(call, [
                 .discovered: true
             ])
         }
