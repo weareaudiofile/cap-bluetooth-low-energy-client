@@ -85,7 +85,12 @@ struct ScanResult {
  */
 @objc(BluetoothLEClient)
 public class BluetoothLEClient: CAPPlugin {
-    let manager = CBCentralManager()
+    lazy var manager: CBCentralManager = {
+        let manager = CBCentralManager()
+        manager.delegate = self
+        return manager
+    }()
+
     var state: CBManagerState = .unknown
     let scanTimeout = 2000
     var stopOnFirstDevice = false
@@ -117,6 +122,8 @@ public class BluetoothLEClient: CAPPlugin {
 
         let timeout = getInt(call, .timeout) ?? scanTimeout
         stopOnFirstDevice = getBool(call, .stopOnFirstResult) ?? false
+
+        saveCall(call, type: .scan)
 
         scanResults = []
 
@@ -433,6 +440,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
     }
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        peripheral.delegate = self
         connectedPeripherals[peripheral.identifier.uuidString] = peripheral
 
         if let call = popSavedCall(type: .connect) {
@@ -443,6 +451,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
     }
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        peripheral.delegate = nil
         connectedPeripherals.removeValue(forKey: peripheral.identifier.uuidString)
 
         if let call = popSavedCall(type: .disconnect) {
