@@ -64,6 +64,8 @@ extension Dictionary where Dictionary.Key == PluginKey {
         for (key, value) in self {
             if let resolveData = value as? ResolveData {
                 result[key.rawValue] = resolveData.stringKeys()
+            } else if let array = value as? Array<ResolveData> {
+                result[key.rawValue] = array.map { $0.stringKeys() }
             } else {
                 result[key.rawValue] = value
             }
