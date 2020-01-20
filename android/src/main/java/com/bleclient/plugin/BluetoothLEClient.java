@@ -82,7 +82,7 @@ public class BluetoothLEClient extends Plugin {
     static final String keyDescriptor = "descriptor";
     static final String keyValue = "value";
     static final String keyTimeout = "timeout";
-    static final String keyStopOnFirstDevice = "stopOnFirstDevice";
+    static final String keyStopOnFirstResult = "stopOnFirstResult";
     static final String keyDiscoveryState = "discovered";
     static final String keySuccess = "success";
     static final String keyDeviceType = "type";
@@ -539,13 +539,13 @@ public class BluetoothLEClient extends Plugin {
         private List<ParcelUuid> serviceUuids;
         private Runnable timeoutCallback;
         private Integer timeout;
-        private Boolean stopOnFirstDevice;
+        private Boolean stopOnFirstResult;
         private Handler handler;
 
-        public BLEScanCallback(List<UUID> serviceUuids, Runnable timeoutCallback, Integer timeout, Boolean stopOnFirstDevice) {
+        public BLEScanCallback(List<UUID> serviceUuids, Runnable timeoutCallback, Integer timeout, Boolean stopOnFirstResult) {
             this.timeoutCallback = timeoutCallback;
             this.timeout = timeout;
-            this.stopOnFirstDevice = stopOnFirstDevice;
+            this.stopOnFirstResult = stopOnFirstResult;
             this.handler = new Handler();
 
             List<ParcelUuid> parcelUuids = new ArrayList<>();
@@ -591,7 +591,7 @@ public class BluetoothLEClient extends Plugin {
                 availableDevices.put(device.getAddress(), device);
             }
 
-            if (stopOnFirstDevice && availableDevices.size() > 0) {
+            if (stopOnFirstResult && availableDevices.size() > 0) {
                 Log.d(getLogTag(), "stopping discovery early");
                 this.handler.removeCallbacks(this.timeoutCallback);
                 this.handler.post(this.timeoutCallback);
@@ -676,9 +676,9 @@ public class BluetoothLEClient extends Plugin {
 
         List<UUID> uuids = getServiceUuids(call.getArray(keyServices));
         Integer timeout = call.getInt(keyTimeout, 2000);
-        Boolean stopOnFirstDevice = call.getBoolean(keyStopOnFirstDevice, false);
+        Boolean stopOnFirstResult = call.getBoolean(keyStopOnFirstResult, false);
 
-        scanCallback = new BLEScanCallback(uuids, this::stopScan, 30000, true);
+        scanCallback = new BLEScanCallback(uuids, this::stopScan, 30000, stopOnFirstResult);
 
         List<ScanFilter> filters = new ArrayList<ScanFilter>();
 

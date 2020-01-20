@@ -93,7 +93,7 @@ public class BluetoothLEClient: CAPPlugin {
 
     var state: CBManagerState = .unknown
     let scanTimeout = 2000
-    var stopOnFirstDevice = false
+    var stopOnFirstResult = false
     var scanResults: [ScanResult] = []
     var connectedPeripherals: [String: CBPeripheral] = [:]
 
@@ -121,7 +121,7 @@ public class BluetoothLEClient: CAPPlugin {
         let services: [CBUUID]? = getArray(call, .services, String.self)?.compactMap { CBUUID(string: $0) }
 
         let timeout = getInt(call, .timeout) ?? scanTimeout
-        stopOnFirstDevice = getBool(call, .stopOnFirstResult) ?? false
+        stopOnFirstResult = getBool(call, .stopOnFirstResult) ?? false
 
         saveCall(call, type: .scan)
 
@@ -434,7 +434,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         scanResults.append(ScanResult(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI))
 
-        if (stopOnFirstDevice) {
+        if (stopOnFirstResult) {
             stopScan()
         }
     }
