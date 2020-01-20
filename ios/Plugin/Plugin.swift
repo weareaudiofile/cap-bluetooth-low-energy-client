@@ -138,134 +138,70 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func connect(_ call: CAPPluginCall) {
-        guard let id = getString(call, .id) else {
-            error(call, .missingParameter(.id))
-            return
+        switch getScannedPeripheral(call) {
+
+        case .success(let peripheral):
+            saveCall(call, type: .connect)
+            manager.connect(peripheral, options: nil)
+
+        case .failure(let err):
+            error(call, err)
         }
-
-        guard let peripheral = getScannedPeripheral(id) else {
-            error(call, .peripheralNotFound(id: id))
-            return
-        }
-
-        saveCall(call, type: .connect)
-
-        manager.connect(peripheral, options: nil)
     }
 
     @objc func discover(_ call: CAPPluginCall) {
-        guard let id = getString(call, .id) else {
-            error(call, .missingParameter(.id))
-            return
+        switch getConnectedPeripheral(call) {
+
+        case .success(let peripheral):
+            saveCall(call, type: .discover)
+            peripheral.discoverServices(nil)
+
+        case .failure(let err):
+            error(call, err)
         }
-
-        guard let peripheral = getConnectedPeripheral(id) else {
-            error(call, .peripheralNotFound(id: id))
-            return
-        }
-
-        saveCall(call, type: .discover)
-
-        peripheral.discoverServices(nil)
     }
 
     @objc func disconnect(_ call: CAPPluginCall) {
-        guard let id = getString(call, .id) else {
-            error(call, .missingParameter(.id))
-            return
+        switch getConnectedPeripheral(call) {
+
+        case .success(let peripheral):
+            saveCall(call, type: .disconnect)
+            manager.cancelPeripheralConnection(peripheral)
+
+        case .failure(let err):
+            error(call, err)
         }
-
-        guard let peripheral = getConnectedPeripheral(id) else {
-            error(call, .peripheralNotFound(id: id))
-            return
-        }
-
-        saveCall(call, type: .disconnect)
-
-        manager.cancelPeripheralConnection(peripheral)
     }
 
     @objc func read(_ call: CAPPluginCall) {
-        guard let id = getString(call, .id) else {
-            error(call, .missingParameter(.id))
-            return
+        switch getPeripheralAndCharacteristic(call) {
+
+        case .success(let (peripheral, characteristic)):
+            saveCall(call, type: .read)
+            peripheral.readValue(for: characteristic)
+
+        case .failure(let err):
+            error(call, err)
         }
-
-        guard let serviceUuid = getUuid(call: call, key: .service) else {
-            error(call, .missingParameter(.service))
-            return
-        }
-
-        guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
-            error(call, .missingParameter(.service))
-            return
-        }
-
-        guard let peripheral = getConnectedPeripheral(id) else {
-            error(call, .peripheralNotFound(id: id))
-            return
-        }
-
-        guard let service = peripheralService(peripheral: peripheral, uuid: serviceUuid) else {
-            error(call, .serviceNotFound(uuid: serviceUuid))
-            return
-        }
-
-        guard let characteristic = serviceCharacteristic(service: service, uuid: characteristicUuid) else {
-            error(call, .characteristicNotFound(uuid: characteristicUuid))
-            return
-        }
-
-        saveCall(call, type: .read)
-
-        peripheral.readValue(for: characteristic)
     }
 
     @objc func write(_ call: CAPPluginCall) {
-        guard let id = getString(call, .id) else {
-            error(call, .missingParameter(.id))
-            return
+        switch getPeripheralAndCharacteristic(call) {
+
+        case .success(let (peripheral, characteristic)):
+            switch getValueData(call) {
+
+            case .success(let data):
+                saveCall(call, type: .read)
+                peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+
+            case .failure(let err):
+                error(call, err)
+            }
+
+        case .failure(let err):
+            error(call, err)
         }
-
-        guard let serviceUuid = getUuid(call: call, key: .service) else {
-            error(call, .missingParameter(.service))
-            return
-        }
-
-        guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
-            error(call, .missingParameter(.service))
-            return
-        }
-
-        guard let value = getString(call, .value) else {
-            error(call, .missingParameter(.value))
-            return
-        }
-
-
-        guard let peripheral = getConnectedPeripheral(id) else {
-            error(call, .peripheralNotFound(id: id))
-            return
-        }
-
-        guard let service = peripheralService(peripheral: peripheral, uuid: serviceUuid) else {
-            error(call, .serviceNotFound(uuid: serviceUuid))
-            return
-        }
-
-        guard let characteristic = serviceCharacteristic(service: service, uuid: characteristicUuid) else {
-            error(call, .characteristicNotFound(uuid: characteristicUuid))
-            return
-        }
-
-        guard let data = decode(value) else {
-            error(call, .dataEncodingError)
-            return
-        }
-
-        saveCall(call, type: .read)
-
-        peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
     }
 
     @objc func readDescriptor(_ call: CAPPluginCall) {
@@ -298,13 +234,93 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func enableNotifications(_ call: CAPPluginCall) {
-        error(call, .notImplemented)
-        return
+        let enabled = true
+
+        switch getPeripheralAndCharacteristic(call) {
+
+        case .success(let (peripheral, characteristic)):
+            peripheral.setNotifyValue(enabled, for: characteristic)
+            resolve(call, [.enabled: enabled])
+
+        case .failure(let err):
+            error(call, err)
+        }
     }
 
     @objc func disableNotifications(_ call: CAPPluginCall) {
-        error(call, .notImplemented)
-        return
+        let enabled = false
+
+        switch getPeripheralAndCharacteristic(call) {
+
+        case .success(let (peripheral, characteristic)):
+            peripheral.setNotifyValue(enabled, for: characteristic)
+            resolve(call, [.enabled: enabled])
+
+        case .failure(let err):
+            error(call, err)
+        }
+    }
+
+    private func getConnectedPeripheral(_ call: CAPPluginCall) -> Result<CBPeripheral, PluginError> {
+        guard let id = getString(call, .id) else {
+            return .failure(.missingParameter(.id))
+        }
+
+        guard let peripheral = getConnectedPeripheral(id) else {
+            return .failure(.peripheralNotFound(id: id))
+        }
+
+        return .success(peripheral)
+    }
+
+    private func getScannedPeripheral(_ call: CAPPluginCall) -> Result<CBPeripheral, PluginError> {
+        guard let id = getString(call, .id) else {
+            return .failure(.missingParameter(.id))
+        }
+
+        guard let peripheral = getScannedPeripheral(id) else {
+            return .failure(.peripheralNotFound(id: id))
+        }
+
+        return .success(peripheral)
+    }
+
+    private func getPeripheralAndCharacteristic(_ call: CAPPluginCall) -> Result<(CBPeripheral, CBCharacteristic), PluginError> {
+        switch getConnectedPeripheral(call) {
+        case .success(let peripheral):
+            guard let serviceUuid = getUuid(call: call, key: .service) else {
+                return .failure(.missingParameter(.service))
+            }
+
+            guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
+                return .failure(.missingParameter(.service))
+            }
+
+            guard let service = peripheralService(peripheral: peripheral, uuid: serviceUuid) else {
+                return .failure(.serviceNotFound(uuid: serviceUuid))
+            }
+
+            guard let characteristic = serviceCharacteristic(service: service, uuid: characteristicUuid) else {
+                return .failure(.characteristicNotFound(uuid: characteristicUuid))
+            }
+
+            return .success((peripheral, characteristic))
+
+        case .failure(let err):
+            return .failure(err)
+        }
+    }
+
+    private func getValueData(_ call: CAPPluginCall) -> Result<Data, PluginError> {
+        guard let value = getString(call, .value) else {
+            return .failure(.missingParameter(.value))
+        }
+
+        guard let data = decode(value) else {
+            return .failure(.dataEncodingError)
+        }
+
+        return .success(data)
     }
 
     private func stopScan() {
@@ -513,5 +529,12 @@ extension BluetoothLEClient: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         let value = characteristic.value ?? Data()
         notifyListeners(characteristic.uuid.uuidString, data: [.value: value])
+
+
+        if let call = popSavedCall(type: .read) {
+            resolve(call, [
+                .value: value.base64EncodedString()
+            ])
+        }
     }
 }
