@@ -98,6 +98,7 @@ public class BluetoothLEClient: CAPPlugin {
     var stopOnFirstResult = false
     var scanResults: [ScanResult] = []
     var connectedPeripherals: [String: CBPeripheral] = [:]
+    var servicesAwaitingDiscovery: [String: Set<CBService>] = [:]
 
     var savedCalls: [CallType: CAPPluginCall] = [:]
 
@@ -333,6 +334,25 @@ public class BluetoothLEClient: CAPPlugin {
         return connectedPeripherals[id]
     }
 
+    private func addServiceAwaitingDiscovery(_ service: CBService) {
+        let id = service.peripheral.identifier.uuidString
+        var services = servicesAwaitingDiscovery[id] ?? Set<CBService>()
+        services.insert(service)
+        servicesAwaitingDiscovery[id] = services
+    }
+
+    private func removeServiceAwaitingDiscovery(_ service: CBService) {
+        let id = service.peripheral.identifier.uuidString
+        var services = servicesAwaitingDiscovery[id] ?? Set<CBService>()
+        services.remove(service)
+        servicesAwaitingDiscovery[id] = services
+    }
+
+    private func getServicesAwaitingDiscovery(_ peripheral: CBPeripheral) -> Set<CBService> {
+        let id = peripheral.identifier.uuidString
+        return servicesAwaitingDiscovery[id] ?? Set<CBService>()
+    }
+
     private func saveCall(_ call: CAPPluginCall, type: CallType) {
         savedCalls[type] = call
     }
@@ -472,19 +492,22 @@ extension BluetoothLEClient: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let services = peripheral.services {
             for service in services {
+                addServiceAwaitingDiscovery(service)
                 peripheral.discoverCharacteristics(nil, for: service)
             }
         }
+    }
+
+    public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        removeServiceAwaitingDiscovery(service)
+
+        guard getServicesAwaitingDiscovery(peripheral).isEmpty else { return }
 
         if let call = popSavedCall(type: .discover) {
             resolve(call, [
                 .discovered: true
             ])
         }
-    }
-
-    public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
