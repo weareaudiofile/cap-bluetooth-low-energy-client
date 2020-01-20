@@ -541,8 +541,10 @@ extension BluetoothLEClient: CBPeripheralDelegate {
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         let encodedValue = encodeToByteArray(characteristic.value ?? Data())
-
-        notifyListeners(characteristic.uuid.uuidString, data: [.value: encodedValue])
+        if let shortUuid = get16BitUUID(uuid: characteristic.uuid) {
+            print("notifying event \(shortUuid)")
+            notifyListeners(String(shortUuid), data: [.value: encodedValue])
+        }
 
         if let call = popSavedCall(type: .read) {
             resolve(call, [.value: encodedValue])
