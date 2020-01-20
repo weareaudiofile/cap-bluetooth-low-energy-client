@@ -27,6 +27,7 @@ enum CallType {
     case disconnect
     case discover
     case read
+    case write
 }
 
 enum PluginError: Error {
@@ -192,7 +193,7 @@ public class BluetoothLEClient: CAPPlugin {
             switch getValueData(call) {
 
             case .success(let data):
-                saveCall(call, type: .read)
+                saveCall(call, type: .write)
                 peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
 
             case .failure(let err):
@@ -259,68 +260,6 @@ public class BluetoothLEClient: CAPPlugin {
         case .failure(let err):
             error(call, err)
         }
-    }
-
-    private func getConnectedPeripheral(_ call: CAPPluginCall) -> Result<CBPeripheral, PluginError> {
-        guard let id = getString(call, .id) else {
-            return .failure(.missingParameter(.id))
-        }
-
-        guard let peripheral = getConnectedPeripheral(id) else {
-            return .failure(.peripheralNotFound(id: id))
-        }
-
-        return .success(peripheral)
-    }
-
-    private func getScannedPeripheral(_ call: CAPPluginCall) -> Result<CBPeripheral, PluginError> {
-        guard let id = getString(call, .id) else {
-            return .failure(.missingParameter(.id))
-        }
-
-        guard let peripheral = getScannedPeripheral(id) else {
-            return .failure(.peripheralNotFound(id: id))
-        }
-
-        return .success(peripheral)
-    }
-
-    private func getPeripheralAndCharacteristic(_ call: CAPPluginCall) -> Result<(CBPeripheral, CBCharacteristic), PluginError> {
-        switch getConnectedPeripheral(call) {
-        case .success(let peripheral):
-            guard let serviceUuid = getUuid(call: call, key: .service) else {
-                return .failure(.missingParameter(.service))
-            }
-
-            guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
-                return .failure(.missingParameter(.service))
-            }
-
-            guard let service = peripheralService(peripheral: peripheral, uuid: serviceUuid) else {
-                return .failure(.serviceNotFound(uuid: serviceUuid))
-            }
-
-            guard let characteristic = serviceCharacteristic(service: service, uuid: characteristicUuid) else {
-                return .failure(.characteristicNotFound(uuid: characteristicUuid))
-            }
-
-            return .success((peripheral, characteristic))
-
-        case .failure(let err):
-            return .failure(err)
-        }
-    }
-
-    private func getValueData(_ call: CAPPluginCall) -> Result<Data, PluginError> {
-        guard let value = getString(call, .value) else {
-            return .failure(.missingParameter(.value))
-        }
-
-        guard let data = decode(value) else {
-            return .failure(.dataEncodingError)
-        }
-
-        return .success(data)
     }
 
     private func stopScan() {
@@ -397,12 +336,24 @@ public class BluetoothLEClient: CAPPlugin {
         return CBUUID(string: string)
     }
 
+    private func get16BitUUID(uuid: CBUUID) -> Int? {
+        let uuidString = uuid.uuidString;
+        let start = uuidString.index(uuidString.startIndex, offsetBy: 4)
+        let end = uuidString.index(uuidString.startIndex, offsetBy: 8)
+        let shortUuidString = uuidString[start..<end]
+        return Int(shortUuidString, radix: 16);
+    }
+
     private func decode(_ base64: String) -> Data? {
         return Data(base64Encoded: base64, options: .ignoreUnknownCharacters)
     }
 
     private func encode(_ data: Data) -> String {
         return data.base64EncodedString()
+    }
+
+    private func encodeToByteArray(_ data: Data) -> [UInt8] {
+        return data.map { $0 }
     }
 
     private func peripheralService(peripheral: CBPeripheral, uuid: CBUUID) -> CBService? {
@@ -443,6 +394,68 @@ extension BluetoothLEClient {
 
     func error(_ call: CAPPluginCall, _ err: PluginError) {
         call.error(err.errorDescription)
+    }
+
+    private func getConnectedPeripheral(_ call: CAPPluginCall) -> Result<CBPeripheral, PluginError> {
+        guard let id = getString(call, .id) else {
+            return .failure(.missingParameter(.id))
+        }
+
+        guard let peripheral = getConnectedPeripheral(id) else {
+            return .failure(.peripheralNotFound(id: id))
+        }
+
+        return .success(peripheral)
+    }
+
+    private func getScannedPeripheral(_ call: CAPPluginCall) -> Result<CBPeripheral, PluginError> {
+        guard let id = getString(call, .id) else {
+            return .failure(.missingParameter(.id))
+        }
+
+        guard let peripheral = getScannedPeripheral(id) else {
+            return .failure(.peripheralNotFound(id: id))
+        }
+
+        return .success(peripheral)
+    }
+
+    private func getPeripheralAndCharacteristic(_ call: CAPPluginCall) -> Result<(CBPeripheral, CBCharacteristic), PluginError> {
+        switch getConnectedPeripheral(call) {
+        case .success(let peripheral):
+            guard let serviceUuid = getUuid(call: call, key: .service) else {
+                return .failure(.missingParameter(.service))
+            }
+
+            guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
+                return .failure(.missingParameter(.service))
+            }
+
+            guard let service = peripheralService(peripheral: peripheral, uuid: serviceUuid) else {
+                return .failure(.serviceNotFound(uuid: serviceUuid))
+            }
+
+            guard let characteristic = serviceCharacteristic(service: service, uuid: characteristicUuid) else {
+                return .failure(.characteristicNotFound(uuid: characteristicUuid))
+            }
+
+            return .success((peripheral, characteristic))
+
+        case .failure(let err):
+            return .failure(err)
+        }
+    }
+
+    private func getValueData(_ call: CAPPluginCall) -> Result<Data, PluginError> {
+        guard let value = getString(call, .value) else {
+            return .failure(.missingParameter(.value))
+        }
+
+        guard let data = decode(value) else {
+            return .failure(.dataEncodingError)
+        }
+
+        return .success(data)
     }
 }
 
@@ -527,14 +540,14 @@ extension BluetoothLEClient: CBPeripheralDelegate {
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        let value = characteristic.value ?? Data()
-        notifyListeners(characteristic.uuid.uuidString, data: [.value: value])
+        let encodedValue = encodeToByteArray(characteristic.value ?? Data())
 
+        notifyListeners(characteristic.uuid.uuidString, data: [.value: encodedValue])
 
         if let call = popSavedCall(type: .read) {
-            resolve(call, [
-                .value: value.base64EncodedString()
-            ])
+            resolve(call, [.value: encodedValue])
+        } else if let call = popSavedCall(type: .write) {
+            resolve(call, [.value: encodedValue])
         }
     }
 }
