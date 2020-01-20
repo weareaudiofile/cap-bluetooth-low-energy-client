@@ -142,7 +142,7 @@ public class BluetoothLEClient: CAPPlugin {
             return
         }
 
-        guard let peripheral = getPeripheral(id) else {
+        guard let peripheral = getScannedPeripheral(id) else {
             error(call, .peripheralNotFound(id: id))
             return
         }
@@ -158,7 +158,7 @@ public class BluetoothLEClient: CAPPlugin {
             return
         }
 
-        guard let peripheral = getPeripheral(id) else {
+        guard let peripheral = getConnectedPeripheral(id) else {
             error(call, .peripheralNotFound(id: id))
             return
         }
@@ -174,7 +174,7 @@ public class BluetoothLEClient: CAPPlugin {
             return
         }
 
-        guard let peripheral = getPeripheral(id) else {
+        guard let peripheral = getConnectedPeripheral(id) else {
             error(call, .peripheralNotFound(id: id))
             return
         }
@@ -200,7 +200,7 @@ public class BluetoothLEClient: CAPPlugin {
             return
         }
 
-        guard let peripheral = getPeripheral(id) else {
+        guard let peripheral = getConnectedPeripheral(id) else {
             error(call, .peripheralNotFound(id: id))
             return
         }
@@ -242,7 +242,7 @@ public class BluetoothLEClient: CAPPlugin {
         }
 
 
-        guard let peripheral = getPeripheral(id) else {
+        guard let peripheral = getConnectedPeripheral(id) else {
             error(call, .peripheralNotFound(id: id))
             return
         }
@@ -323,10 +323,14 @@ public class BluetoothLEClient: CAPPlugin {
         }
     }
 
-    private func getPeripheral(_ id: String) -> CBPeripheral? {
+    private func getScannedPeripheral(_ id: String) -> CBPeripheral? {
         return scanResults
             .first { $0.peripheral.identifier.uuidString == id }?
             .peripheral
+    }
+
+    private func getConnectedPeripheral(_ id: String) -> CBPeripheral? {
+        return connectedPeripherals[id]
     }
 
     private func saveCall(_ call: CAPPluginCall, type: CallType) {
@@ -477,6 +481,10 @@ extension BluetoothLEClient: CBPeripheralDelegate {
                 .discovered: true
             ])
         }
+    }
+
+    public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
