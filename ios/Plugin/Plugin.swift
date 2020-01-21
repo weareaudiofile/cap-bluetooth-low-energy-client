@@ -104,19 +104,24 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func scan(_ call: CAPPluginCall) {
-        let services: [CBUUID]? = call.getArray(.services, String.self)?.compactMap { CBUUID(string: $0) }
+        switch getUuids(call, key: .services) {
 
-        let timeout = call.getInt(.timeout) ?? scanTimeout
-        stopOnFirstResult = call.getBool(.stopOnFirstResult) ?? false
+        case .success(let services):
+            let timeout = call.getInt(.timeout) ?? scanTimeout
+            stopOnFirstResult = call.getBool(.stopOnFirstResult) ?? false
 
-        saveCall(call, type: .scan)
+            saveCall(call, type: .scan)
 
-        scanResults = []
+            scanResults = []
 
             manager?.scanForPeripherals(withServices: services, options: nil)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeout)) {
-            self.stopScan()
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeout)) {
+                self.stopScan()
+            }
+
+        case .failure(let err):
+            call.error(err.errorDescription, err)
         }
     }
 
@@ -418,6 +423,14 @@ extension BluetoothLEClient {
         }
 
         return .success(data)
+    }
+
+    private func getUuids(_ call: CAPPluginCall, key: String) -> Result<[CBUUID], PluginError> {
+        guard let services = call.getArray(key, String.self) else {
+            return .failure(.missingParameter(.services))
+        }
+
+        return .success(services.compactMap { CBUUID(string: $0) })
     }
 }
 
