@@ -68,11 +68,7 @@ struct ScanResult {
  */
 @objc(BluetoothLEClient)
 public class BluetoothLEClient: CAPPlugin {
-    lazy var manager: CBCentralManager = {
-        let manager = CBCentralManager()
-        manager.delegate = self
-        return manager
-    }()
+    var manager: CBCentralManager?
 
     var state: CBManagerState = .unknown
     let scanTimeout = 2000
@@ -83,18 +79,24 @@ public class BluetoothLEClient: CAPPlugin {
 
     var savedCalls: [CallType: CAPPluginCall] = [:]
 
+    @objc override public func load() {
+        manager = CBCentralManager()
+        manager?.delegate = self
+    }
+
+    // The last iOS devices not supporting BLE were the 4S and the iPad 2, which cannot run iOS 10+,
+    // so any iOS device running iOS 11+ supports BLE
     @objc func isAvailable(_ call: CAPPluginCall) {
-        let isAvailable = manager.state != .unknown && manager.state != .unsupported
-        call.resolve([.isAvailable: isAvailable])
+        call.resolve([.isAvailable: true])
     }
 
     @objc func isEnabled(_ call: CAPPluginCall) {
-        let isEnabled = manager.state != .unknown && manager.state != .unauthorized
+        let isEnabled = manager?.state == .poweredOn
         call.resolve([.isEnabled: isEnabled])
     }
 
     @objc func enable(_ call: CAPPluginCall) {
-        if manager.state == .poweredOn {
+        if manager?.state == .poweredOn {
             call.resolve([.enabled: true])
         }
 
@@ -111,7 +113,7 @@ public class BluetoothLEClient: CAPPlugin {
 
         scanResults = []
 
-        manager.scanForPeripherals(withServices: services, options: nil)
+            manager?.scanForPeripherals(withServices: services, options: nil)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeout)) {
             self.stopScan()
@@ -123,7 +125,7 @@ public class BluetoothLEClient: CAPPlugin {
 
         case .success(let peripheral):
             saveCall(call, type: .connect)
-            manager.connect(peripheral, options: nil)
+            manager?.connect(peripheral, options: nil)
 
         case .failure(let err):
             call.error(err.errorDescription, err)
@@ -147,7 +149,7 @@ public class BluetoothLEClient: CAPPlugin {
 
         case .success(let peripheral):
             saveCall(call, type: .disconnect)
-            manager.cancelPeripheralConnection(peripheral)
+            manager?.cancelPeripheralConnection(peripheral)
 
         case .failure(let err):
             call.error(err.errorDescription, err)
@@ -251,7 +253,7 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     private func stopScan() {
-        if manager.isScanning {
+        if let manager = manager, manager.isScanning {
             manager.stopScan()
         }
 
