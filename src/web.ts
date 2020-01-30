@@ -33,7 +33,19 @@ import {get16BitUUID, base64ToBytes} from "./utils/utils";
 import {BluetoothGATTCharacteristics} from "./utils/ble-gatt-characteristics.enum";
 import {NotConnectedError, OptionsRequiredError} from "./utils/errors";
 
-const nav: Navigator = navigator;
+interface BluetoothProvider {
+  bluetooth: {
+    requestDevice: () => void;
+  }
+}
+
+// If this browser does not support bluetooth, don't fail unless we try to use it
+const nav: BluetoothProvider =
+  typeof navigator === "undefined"
+    ? { bluetooth: { requestDevice: () => {
+      throw new Error("Bluetooth is not supported");
+    } } }
+    : navigator;
 
 export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClientPlugin {
 
