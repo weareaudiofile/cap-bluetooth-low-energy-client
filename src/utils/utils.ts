@@ -2,10 +2,14 @@ import {BluetoothGATTByteData} from "../definitions";
 
 export * from "./base64";
 
-export const get16BitUUID = (uuid: string) => {
-    const prefix = "0x";
-    const id = uuid.substr(4,4);
-    return parseInt(prefix.concat(id));
+export const get16BitUUID = (uuid: string | number) => {
+    if (isNaN(+uuid)) {
+        const prefix = "0x";
+        const id = (uuid as string).substr(4,4);
+        return parseInt(prefix.concat(id));
+    } else {
+        return uuid as number;
+    }
 };
 
 export const toDataView = (value: BluetoothGATTByteData) => {

@@ -1,6 +1,7 @@
 import { WebPlugin } from '@capacitor/core';
 import {
   BluetoothGATTAvailabilityResult,
+  BluetoothGATTCharacteristic,
   BluetoothGATTCharacteristicReadOptions,
   BluetoothGATTCharacteristicReadResult,
   BluetoothGATTCharacteristicWriteOptions,
@@ -20,6 +21,7 @@ import {
   BluetoothGATTNotificationOptions,
   BluetoothGATTScanOptions,
   BluetoothGATTScanResults,
+  BluetoothGATTService,
   BluetoothGATTServiceDiscoveryOptions,
   BluetoothGATTServiceDiscoveryResult,
   BluetoothLEClientPlugin,
@@ -35,7 +37,11 @@ import {NotConnectedError, OptionsRequiredError} from "./utils/errors";
 
 interface BluetoothProvider {
   bluetooth: {
-    requestDevice: () => void;
+    requestDevice: (options: {
+      filters: Array<{services: Array<BluetoothGATTService>}>,
+      optionalServices: Array<BluetoothGATTService>,
+      acceptAllDevices: boolean
+    }) => Promise<BluetoothDevice>;
   }
 }
 
@@ -97,7 +103,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
     const filters = options.services.map((service) => {
       return {services: [service]};
     });
-    const optionalServices: number[] = options.services || [];
+    const optionalServices: BluetoothGATTService[] = options.services || [];
 
     try {
 
