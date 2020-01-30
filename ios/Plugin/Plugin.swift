@@ -5,6 +5,7 @@ import CoreBluetooth
 extension String {
     static var characteristic = "characteristic"
     static var connected = "connected"
+    static var deviceDisconnected = "deviceDisconnected"
     static var devices = "devices"
     static var disconnected = "disconnected"
     static var discovered  = "discovered"
@@ -489,6 +490,8 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
                 .disconnected: true
             ])
         }
+
+        notifyListeners(.deviceDisconnected, data: [.id : peripheral.identifier.uuidString])
     }
 }
 

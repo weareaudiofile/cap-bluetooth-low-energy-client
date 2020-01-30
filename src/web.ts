@@ -118,7 +118,10 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
 
       try {
 
-        const  device = this.devices.get(id);
+        const device = this.devices.get(id);
+        device.addEventListener('gattserverdisconnected', () => {
+          this.notifyListeners('deviceDisconnected', {id});
+        })
         const gatt = await device.gatt.connect();
         const connection = new Map();
         connection.set("peripheral", gatt);
