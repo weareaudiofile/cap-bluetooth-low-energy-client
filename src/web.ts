@@ -1,7 +1,6 @@
 import { WebPlugin } from '@capacitor/core';
 import {
   BluetoothGATTAvailabilityResult,
-  BluetoothGATTCharacteristic,
   BluetoothGATTCharacteristicReadOptions,
   BluetoothGATTCharacteristicReadResult,
   BluetoothGATTCharacteristicWriteOptions,
