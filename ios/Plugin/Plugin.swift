@@ -524,12 +524,14 @@ extension BluetoothLEClient: CBPeripheralDelegate {
             .value: encodedValue
         ]
 
+        if let shortUuid = get16BitUUID(uuid: characteristic.uuid) {
+            notifyListeners(String(shortUuid), data: data)
+        }
+
         if let call = popSavedCall(type: .read) {
             call.resolve(data)
         } else if let call = popSavedCall(type: .write) {
             call.resolve(data)
-        } else if let shortUuid = get16BitUUID(uuid: characteristic.uuid) {
-            notifyListeners(String(shortUuid), data: data)
         }
     }
 }
