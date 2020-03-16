@@ -1,6 +1,6 @@
 {
   "name": "@weareaudiofile/cap-bluetooth-low-energy-client",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Capacitor Bluetooth Low Energy Client Plugin",
   "main": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
