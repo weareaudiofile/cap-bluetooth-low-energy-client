@@ -444,6 +444,7 @@ public class BluetoothLEClient extends Plugin {
             }
 
             JSObject ret = new JSObject();
+            addProperty(ret, keyAddress, address);
             addProperty(ret, keyValue, jsByteArray(characteristicValue));
 
             notifyListeners(characteristic16BitUuid.toString(), ret);

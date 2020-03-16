@@ -519,15 +519,19 @@ extension BluetoothLEClient: CBPeripheralDelegate {
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         let encodedValue = encodeToByteArray(characteristic.value ?? Data())
+        let data: PluginResultData = [
+            .id: peripheral.identifier.uuidString,
+            .value: encodedValue
+        ]
 
         if let shortUuid = get16BitUUID(uuid: characteristic.uuid) {
-            notifyListeners(String(shortUuid), data: [.value: encodedValue])
+            notifyListeners(String(shortUuid), data: data)
         }
 
         if let call = popSavedCall(type: .read) {
-            call.resolve([.value: encodedValue])
+            call.resolve(data)
         } else if let call = popSavedCall(type: .write) {
-            call.resolve([.value: encodedValue])
+            call.resolve(data)
         }
     }
 }
