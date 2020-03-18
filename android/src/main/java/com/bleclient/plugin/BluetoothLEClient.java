@@ -436,10 +436,7 @@ public class BluetoothLEClient extends Plugin {
 
             byte[] characteristicValue = characteristic.getValue();
 
-
-            Integer characteristic16BitUuid = get16BitUUID(characteristicUuid);
-
-            if (characteristic16BitUuid == null) {
+            if (characteristicUuid == null) {
                 return;
             }
 
@@ -447,7 +444,7 @@ public class BluetoothLEClient extends Plugin {
             addProperty(ret, keyAddress, address);
             addProperty(ret, keyValue, jsByteArray(characteristicValue));
 
-            notifyListeners(characteristic16BitUuid.toString(), ret);
+            notifyListeners(characteristicUuid.toString(), ret);
         }
 
         @Override
@@ -937,9 +934,9 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        UUID charactristicUuid = get128BitUUID(propertyCharacteristic);
+        UUID characteristicUuid = get128BitUUID(propertyCharacteristic);
 
-        BluetoothGattCharacteristic characteristic = service.getCharacteristic(charactristicUuid);
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
 
         if (characteristic == null) {
             call.reject(keyErrorCharacteristicNotFound);
@@ -1485,7 +1482,7 @@ public class BluetoothLEClient extends Plugin {
     private JSObject createJSBluetoothGattService(BluetoothGattService service) {
         JSObject retService = new JSObject();
 
-        addProperty(retService, keyUuid, get16BitUUID(service.getUuid()));
+        addProperty(retService, keyUuid, service.getUuid().toString());
 
         if (service.getType() == BluetoothGattService.SERVICE_TYPE_PRIMARY) {
             addProperty(retService, keyIsPrimaryService, true);
@@ -1494,20 +1491,20 @@ public class BluetoothLEClient extends Plugin {
         }
 
 
-        ArrayList<Integer> included = new ArrayList<>();
+        ArrayList<String> included = new ArrayList<>();
         List<BluetoothGattService> subServices = service.getIncludedServices();
 
         for (BluetoothGattService incService : subServices) {
-            included.add(get16BitUUID(incService.getUuid()));
+            included.add(incService.getUuid().toString());
         }
 
         retService.put(keyIncludedServices, JSArray.from(included.toArray()));
 
-        ArrayList<Integer> retCharacteristics = new ArrayList<>();
+        ArrayList<String> retCharacteristics = new ArrayList<>();
         List<BluetoothGattCharacteristic> characteristics = service.getCharacteristics();
 
         for (BluetoothGattCharacteristic characteristic : characteristics) {
-            retCharacteristics.add(get16BitUUID(characteristic.getUuid()));
+            retCharacteristics.add(characteristic.getUuid().toString());
         }
 
         retService.put(keyCharacteristics, JSArray.from(retCharacteristics.toArray()));
@@ -1519,14 +1516,14 @@ public class BluetoothLEClient extends Plugin {
 
         JSObject retCharacteristic = new JSObject();
 
-        addProperty(retCharacteristic, keyUuid, get16BitUUID(characteristic.getUuid()));
+        addProperty(retCharacteristic, keyUuid, characteristic.getUuid().toString());
         addProperty(retCharacteristic, keyCharacteristicProperies, getCharacteristicProperties(characteristic));
 
         List<BluetoothGattDescriptor> descriptors = characteristic.getDescriptors();
-        ArrayList<Integer> descriptorUuids = new ArrayList<>();
+        ArrayList<String> descriptorUuids = new ArrayList<>();
 
         for (BluetoothGattDescriptor descriptor : descriptors) {
-            descriptorUuids.add(get16BitUUID(descriptor.getUuid()));
+            descriptorUuids.add(descriptor.getUuid().toString());
         }
 
         addProperty(retCharacteristic, keyCharacterisicDescripors, JSArray.from(descriptorUuids.toArray()));

@@ -2,6 +2,8 @@ import {BluetoothGATTByteData} from "../definitions";
 
 export * from "./base64";
 
+const uuidRegexp = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export const get16BitUUID = (uuid: string | number) => {
     if (isNaN(+uuid)) {
         const prefix = "0x";
@@ -11,6 +13,24 @@ export const get16BitUUID = (uuid: string | number) => {
         return uuid as number;
     }
 };
+
+export const get128BitUUID = (uuid: string | number) => {
+    if (uuid === null) {
+        return undefined;
+    }
+
+    if (typeof uuid === "string") {
+        return uuid.match(uuidRegexp) ? uuid : undefined;
+    }
+
+    const hexString = (+uuid).toString(16);
+
+    if (hexString.length !== 4) {
+        return undefined;
+    }
+
+    return `0000${hexString}-0000-1000-8000-00805F9B34FB`;
+}
 
 export const toDataView = (value: BluetoothGATTByteData) => {
 

@@ -190,7 +190,7 @@ public class BluetoothLEClient: CAPPlugin {
             }
 
         case .failure(let err):
-                call.error(err.errorDescription, err)
+            call.error(err.errorDescription, err)
         }
     }
 
@@ -267,7 +267,7 @@ public class BluetoothLEClient: CAPPlugin {
             let devices: [PluginResultData] = scanResults.map {
                 return [
                     .name: $0.peripheral.name ?? "",
-                    .id: $0.peripheral.identifier.uuidString
+                    .id: externalUuidString($0.peripheral.identifier)
                 ]
             }
 
@@ -277,7 +277,7 @@ public class BluetoothLEClient: CAPPlugin {
 
     private func getScannedPeripheral(_ id: String) -> CBPeripheral? {
         return scanResults
-            .first { $0.peripheral.identifier.uuidString == id }?
+            .first { externalUuidString($0.peripheral.identifier) == id }?
             .peripheral
     }
 
@@ -286,21 +286,21 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     private func addServiceAwaitingDiscovery(_ service: CBService) {
-        let id = service.peripheral.identifier.uuidString
+        let id = externalUuidString(service.peripheral.identifier)
         var services = servicesAwaitingDiscovery[id] ?? Set<CBService>()
         services.insert(service)
         servicesAwaitingDiscovery[id] = services
     }
 
     private func removeServiceAwaitingDiscovery(_ service: CBService) {
-        let id = service.peripheral.identifier.uuidString
+        let id = externalUuidString(service.peripheral.identifier)
         var services = servicesAwaitingDiscovery[id] ?? Set<CBService>()
         services.remove(service)
         servicesAwaitingDiscovery[id] = services
     }
 
     private func getServicesAwaitingDiscovery(_ peripheral: CBPeripheral) -> Set<CBService> {
-        let id = peripheral.identifier.uuidString
+        let id = externalUuidString(peripheral.identifier)
         return servicesAwaitingDiscovery[id] ?? Set<CBService>()
     }
 
@@ -325,6 +325,12 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     private func makeUuid(_ int: Int) -> CBUUID? {
+        let hexString = String(format: "%04x", int)
+
+        if hexString.count == 4 {
+            return CBUUID(string: "0000\(hexString)-0000-1000-8000-00805F9B34FB");
+        }
+
         return nil
     }
 
@@ -433,6 +439,14 @@ extension BluetoothLEClient {
 
         return .success(services.compactMap { CBUUID(string: $0) })
     }
+
+    private func externalUuidString(_ uuid: CBUUID) -> String {
+        return uuid.uuidString.lowercased()
+    }
+
+    private func externalUuidString(_ uuid: UUID) -> String {
+        return uuid.uuidString.lowercased()
+    }
 }
 
 extension BluetoothLEClient: CBCentralManagerDelegate {
@@ -472,7 +486,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         peripheral.delegate = self
-        connectedPeripherals[peripheral.identifier.uuidString] = peripheral
+        connectedPeripherals[externalUuidString(peripheral.identifier)] = peripheral
 
         if let call = popSavedCall(type: .connect) {
             call.resolve([
@@ -483,7 +497,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         peripheral.delegate = nil
-        connectedPeripherals.removeValue(forKey: peripheral.identifier.uuidString)
+        connectedPeripherals.removeValue(forKey: externalUuidString(peripheral.identifier))
 
         if let call = popSavedCall(type: .disconnect) {
             call.resolve([
@@ -491,7 +505,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
             ])
         }
 
-        notifyListeners(.deviceDisconnected, data: [.id : peripheral.identifier.uuidString])
+        notifyListeners(.deviceDisconnected, data: [.id : externalUuidString(peripheral.identifier)])
     }
 }
 
@@ -520,13 +534,11 @@ extension BluetoothLEClient: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         let encodedValue = encodeToByteArray(characteristic.value ?? Data())
         let data: PluginResultData = [
-            .id: peripheral.identifier.uuidString,
+            .id: externalUuidString(peripheral.identifier),
             .value: encodedValue
         ]
 
-        if let shortUuid = get16BitUUID(uuid: characteristic.uuid) {
-            notifyListeners(String(shortUuid), data: data)
-        }
+        notifyListeners(externalUuidString(characteristic.uuid), data: data)
 
         if let call = popSavedCall(type: .read) {
             call.resolve(data)

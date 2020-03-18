@@ -172,7 +172,7 @@ export interface GetServiceOptions{
 }
 
 export interface GATTService{
-  uuid: BluetoothGATTServices | number,
+  uuid: string,
   isPrimary: boolean,
   characteristics: Array<BluetoothGATTCharacteristic>,
   included?: Array<BluetoothGATTService>
@@ -201,7 +201,7 @@ export interface GATTCharacteristicProperties{
 export interface GATTCharacteristic{
   uuid: BluetoothGATTCharacteristic,
   properties: GATTCharacteristicProperties,
-  descriptors: number[]
+  descriptors: string[]
 }
 
 export type GetCharacteristicResult = GATTCharacteristic | {characteristics: GATTCharacteristic[]};

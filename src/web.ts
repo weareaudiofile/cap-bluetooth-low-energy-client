@@ -28,10 +28,10 @@ import {
   GetCharacteristicOptions,
   GetCharacteristicResult,
   GetServiceOptions,
-  GetServiceResult
+  GetServiceResult,
+  BluetoothGATTCharacteristic
 } from './definitions';
-import {get16BitUUID, base64ToBytes} from "./utils/utils";
-import {BluetoothGATTCharacteristics} from "./utils/ble-gatt-characteristics.enum";
+import {base64ToBytes} from "./utils/utils";
 import {NotConnectedError, OptionsRequiredError} from "./utils/errors";
 
 interface BluetoothProvider {
@@ -324,11 +324,11 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
 
         const meta = {
           id: dev.id,
-          service: get16BitUUID(serv.uuid),
-          characteristic: get16BitUUID(char.uuid)
+          service: serv.uuid,
+          characteristic: char.uuid
         };
 
-        this.notifyListeners(get16BitUUID(char.uuid).toString(), {...meta, value});
+        this.notifyListeners(char.uuid, {...meta, value});
       });
 
 
@@ -380,7 +380,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
         const characteristics = await this.getIncludedCharacteristicUuids(service);
 
         return {
-          uuid: get16BitUUID(service.uuid),
+          uuid: service.uuid,
           isPrimary: service.isPrimary,
           characteristics
         };
@@ -411,7 +411,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
       const {uuid, isPrimary} = gattService;
 
       return {
-        uuid: get16BitUUID(uuid),
+        uuid,
         isPrimary,
         characteristics
       }
@@ -447,7 +447,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
         const properties = this.getCharacteristicProperties(characteristic);
 
         return {
-          uuid: get16BitUUID(uuid),
+          uuid,
           properties,
           descriptors
         }
@@ -479,7 +479,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
       const gattCharacteristic = await gattService.getCharacteristic(characteristic);
       const descriptors = await this.getIncludedDescriptorUuids(gattCharacteristic);
       const properties = this.getCharacteristicProperties(gattCharacteristic);
-      const uuid = get16BitUUID(gattCharacteristic.uuid);
+      const uuid = gattCharacteristic.uuid;
 
       return {
         uuid,
@@ -530,7 +530,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
     };
   }
 
-  private async getIncludedCharacteristicUuids(service: BluetoothRemoteGATTService): Promise<Array<BluetoothGATTCharacteristics | number>> {
+  private async getIncludedCharacteristicUuids(service: BluetoothRemoteGATTService): Promise<Array<BluetoothGATTCharacteristic>> {
     let characteristics: BluetoothRemoteGATTCharacteristic[] = [];
 
     try {
@@ -539,10 +539,10 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
       return Promise.reject(e);
     }
 
-    return characteristics.map((characteristic) => get16BitUUID(characteristic.uuid));
+    return characteristics.map((characteristic) => characteristic.uuid);
   }
 
-  private async getIncludedDescriptorUuids(characteristic: BluetoothRemoteGATTCharacteristic): Promise<number[]>{
+  private async getIncludedDescriptorUuids(characteristic: BluetoothRemoteGATTCharacteristic): Promise<string[]>{
 
     let descriptors: BluetoothRemoteGATTDescriptor [] = [];
 
@@ -552,7 +552,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
       console.log(e);
     }
 
-    return descriptors.map((descriptor) => get16BitUUID(descriptor.uuid));
+    return descriptors.map((descriptor) => descriptor.uuid);
   }
 
 
