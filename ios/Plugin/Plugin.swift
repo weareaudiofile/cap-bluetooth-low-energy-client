@@ -3,23 +3,35 @@ import Capacitor
 import CoreBluetooth
 
 extension String {
+    static var authenticatedSignedWrites = "authenticatedSignedWrites"
+    static var broadcast = "broadcast"
     static var characteristic = "characteristic"
+    static var characteristics = "characteristics"
     static var connected = "connected"
     static var deviceDisconnected = "deviceDisconnected"
     static var devices = "devices"
     static var disconnected = "disconnected"
     static var discovered  = "discovered"
+    static var descriptors = "descriptors"
     static var id = "id"
+    static var included = "included"
+    static var indicate = "indicate"
     static var isAvailable = "isAvailable"
     static var isEnabled = "isEnabled"
+    static var isPrimary = "isPrimary"
     static var enabled = "enabled"
     static var name = "name"
+    static var notify = "notify"
+    static var properties = "properties"
+    static var read = "read"
     static var service = "service"
     static var services = "services"
     static var stopOnFirstResult = "stopOnFirstResult"
     static var timeout = "timeout"
+    static var uuid = "uuid"
     static var value = "value"
-    static var withoutResponse = "withoutResponse"
+    static var write = "write"
+    static var writeWithoutResponse = "writeWithoutResponse"
 }
 
 enum CallType {
@@ -37,7 +49,7 @@ enum PluginError: Error {
     case serviceNotFound(uuid: CBUUID)
     case characteristicNotFound(uuid: CBUUID)
     case dataEncodingError
-    case notImplemented
+    case notImplemented(_ feature: String)
 
     var errorDescription: String {
         switch self {
@@ -51,8 +63,8 @@ enum PluginError: Error {
             return "characteristic \"\(uuid.uuidString)\" not found"
         case .dataEncodingError:
             return "data encoding error"
-        case .notImplemented:
-            return "not implemented"
+        case .notImplemented(let feature):
+            return "\(feature) not implemented"
         }
     }
 }
@@ -195,39 +207,45 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func readDescriptor(_ call: CAPPluginCall) {
-        let err = PluginError.notImplemented
+        let err = PluginError.notImplemented("readDescriptor()")
         call.error(err.errorDescription, err)
         return
     }
 
     @objc func writeDescriptor(_ call: CAPPluginCall) {
-        let err = PluginError.notImplemented
+        let err = PluginError.notImplemented("writeDescriptor()")
         call.error(err.errorDescription, err)
         return
     }
 
     @objc func getServices(_ call: CAPPluginCall) {
-        let err = PluginError.notImplemented
+        let err = PluginError.notImplemented("getServices()")
         call.error(err.errorDescription, err)
         return
     }
 
     @objc func getService(_ call: CAPPluginCall) {
-        let err = PluginError.notImplemented
-        call.error(err.errorDescription, err)
-        return
+        switch getPeripheralAndService(call) {
+        case .success(let (_, service)):
+            call.resolve(serialize(service))
+        case .failure(let error):
+            call.reject(error.errorDescription)
+        }
     }
 
     @objc func getCharacteristics(_ call: CAPPluginCall) {
-        let err = PluginError.notImplemented
+        let err = PluginError.notImplemented("getCharacteristics()")
         call.error(err.errorDescription, err)
         return
     }
 
     @objc func getCharacteristic(_ call: CAPPluginCall) {
-        let err = PluginError.notImplemented
-        call.error(err.errorDescription, err)
-        return
+        switch getPeripheralAndCharacteristic(call) {
+        case .success(let (_, characteristic)):
+            call.resolve(serialize(characteristic))
+        case .failure(let error):
+            call.reject(error.errorDescription)
+        }
     }
 
     @objc func enableNotifications(_ call: CAPPluginCall) {
@@ -365,6 +383,47 @@ public class BluetoothLEClient: CAPPlugin {
     private func serviceCharacteristic(service: CBService, uuid: CBUUID) -> CBCharacteristic? {
         return service.characteristics?.first { $0.uuid == uuid }
     }
+
+    private func serialize(_ service: CBService) -> PluginResultData {
+        let characteristics = service.characteristics?.map { serialize($0) } ?? []
+
+        var dict: PluginResultData = [
+            .uuid : service.uuid.uuidString,
+            .isPrimary: service.isPrimary,
+            .characteristics: characteristics
+        ]
+
+        if let included = service.includedServices?.map({ serialize($0) }) {
+            dict[.included] = included
+        }
+
+        return dict
+    }
+
+    private func serialize(_ characteristic: CBCharacteristic) -> PluginResultData {
+        return [
+            .uuid: characteristic.uuid.uuidString,
+            .properties: serialize(characteristic.properties),
+            .descriptors: serialize(characteristic.descriptors)
+        ]
+    }
+
+    private func serialize(_ properties: CBCharacteristicProperties) -> PluginResultData {
+        return [
+            .authenticatedSignedWrites: properties.contains(.authenticatedSignedWrites),
+            .broadcast: properties.contains(.broadcast),
+            .indicate: properties.contains(.indicate),
+            .notify: properties.contains(.notify),
+            .read: properties.contains(.read),
+            .write: properties.contains(.write),
+            .writeWithoutResponse: properties.contains(.writeWithoutResponse)
+        ]
+    }
+
+    private func serialize(_ descriptors: [CBDescriptor]?) -> [String] {
+        guard let descriptors = descriptors else { return [] }
+        return descriptors.compactMap { $0.value as? String }
+    }
 }
 
 // MARK: - Call handling
@@ -394,19 +453,29 @@ extension BluetoothLEClient {
         return .success(peripheral)
     }
 
-    private func getPeripheralAndCharacteristic(_ call: CAPPluginCall) -> Result<(CBPeripheral, CBCharacteristic), PluginError> {
+    private func getPeripheralAndService(_ call: CAPPluginCall) -> Result<(CBPeripheral, CBService), PluginError> {
         switch getConnectedPeripheral(call) {
         case .success(let peripheral):
             guard let serviceUuid = getUuid(call: call, key: .service) else {
                 return .failure(.missingParameter(.service))
             }
 
-            guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
-                return .failure(.missingParameter(.service))
-            }
-
             guard let service = peripheralService(peripheral: peripheral, uuid: serviceUuid) else {
                 return .failure(.serviceNotFound(uuid: serviceUuid))
+            }
+
+            return .success((peripheral, service))
+
+        case .failure(let err):
+            return .failure(err)
+        }
+    }
+
+    private func getPeripheralAndCharacteristic(_ call: CAPPluginCall) -> Result<(CBPeripheral, CBCharacteristic), PluginError> {
+        switch getPeripheralAndService(call) {
+        case .success(let (peripheral, service)):
+            guard let characteristicUuid = getUuid(call: call, key: .characteristic) else {
+                return .failure(.missingParameter(.service))
             }
 
             guard let characteristic = serviceCharacteristic(service: service, uuid: characteristicUuid) else {
