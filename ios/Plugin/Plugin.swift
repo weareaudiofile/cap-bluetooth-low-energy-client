@@ -27,6 +27,7 @@ extension String {
     static var notify = "notify"
     static var properties = "properties"
     static var read = "read"
+    static var rssi = "rssi"
     static var service = "service"
     static var services = "services"
     static var stopOnFirstResult = "stopOnFirstResult"
@@ -314,7 +315,8 @@ public class BluetoothLEClient: CAPPlugin {
             let devices: [PluginResultData] = scanResults.map {
                 return [
                     .name: $0.peripheral.name ?? "",
-                    .id: externalUuidString($0.peripheral.identifier)
+                    .id: externalUuidString($0.peripheral.identifier),
+                    .rssi: $0.rssi
                 ]
             }
 

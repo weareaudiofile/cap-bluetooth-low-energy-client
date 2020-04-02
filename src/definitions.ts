@@ -73,7 +73,8 @@ export interface BluetoothGATTScanOptions{
 
 export interface BluetoothGATTPeripheral{
   name: string,
-  id: string
+  id: string,
+  rssi?: number
 }
 
 export interface BluetoothGATTScanResults{
