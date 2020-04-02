@@ -2,6 +2,9 @@ import Foundation
 import Capacitor
 import CoreBluetooth
 
+// TODO: Get withoutResponse value from call
+private var WRITE_TYPE = CBCharacteristicWriteType.withoutResponse
+
 extension String {
     static var authenticatedSignedWrites = "authenticatedSignedWrites"
     static var broadcast = "broadcast"
@@ -41,6 +44,12 @@ enum CallType {
     case discover
     case read
     case write
+    case writeWithoutResponse
+}
+
+enum WriteStatus {
+    case queuedWriteWithoutResponse
+    case success
 }
 
 enum PluginError: Error {
@@ -193,9 +202,29 @@ public class BluetoothLEClient: CAPPlugin {
             switch getValueData(call) {
 
             case .success(let data):
-                // TODO: Get withoutResponse value from call, resolve now for withoutResponse=true
-                saveCall(call, type: .write)
-                peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+                switch WRITE_TYPE {
+                case .withResponse:
+                    saveCall(call, type: .write)
+                    peripheral.writeValue(data, for: characteristic, type: WRITE_TYPE)
+
+                case .withoutResponse:
+                    if peripheral.canSendWriteWithoutResponse {
+                        print("[ios] peripheral is already ready for write without response")
+                        peripheral.writeValue(data, for: characteristic, type: WRITE_TYPE)
+
+                        let encodedValue = encodeToByteArray(characteristic.value ?? Data())
+                        let data: PluginResultData = [
+                            .id: externalUuidString(peripheral.identifier),
+                            .value: encodedValue
+                        ]
+
+                        call.resolve(data)
+                    } else {
+                        // resolved when peripheral is ready
+                        saveCall(call, type: .writeWithoutResponse)
+                    }
+                }
+
 
             case .failure(let err):
                 call.error(err.errorDescription, err)
@@ -613,6 +642,23 @@ extension BluetoothLEClient: CBPeripheralDelegate {
             call.resolve(data)
         } else if let call = popSavedCall(type: .write) {
             call.resolve(data)
+        } else if let call = popSavedCall(type: .writeWithoutResponse) {
+            call.resolve(data)
         }
+    }
+
+    public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error = error {
+            print(error)
+            return
+        }
+
+        print("[iOS] wrote \(String(describing: characteristic.value)) to \(characteristic.uuid.uuidString)")
+    }
+
+    public func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+        print("[ios] peripheral is now ready for write without response")
+        guard let call = popSavedCall(type: .writeWithoutResponse) else { return }
+        write(call);
     }
 }
