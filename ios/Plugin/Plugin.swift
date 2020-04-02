@@ -43,6 +43,9 @@ enum CallType {
     case connect
     case disconnect
     case discover
+}
+
+enum CharacteristicCallType {
     case read
     case write
     case writeWithoutResponse
@@ -101,6 +104,7 @@ public class BluetoothLEClient: CAPPlugin {
     var servicesAwaitingDiscovery: [String: Set<CBService>] = [:]
 
     var savedCalls: [CallType: CAPPluginCall] = [:]
+    var savedCharacteristicCalls: [CBUUID: [CharacteristicCallType: CAPPluginCall]] = [:]
 
     @objc override public func load() {
         manager = CBCentralManager()
@@ -188,7 +192,8 @@ public class BluetoothLEClient: CAPPlugin {
         switch getPeripheralAndCharacteristic(call) {
 
         case .success(let (peripheral, characteristic)):
-            saveCall(call, type: .read)
+            saveCall(call, characteristic: characteristic, type: .read)
+            print("[ios] reading   \(externalUuidString(characteristic.uuid))")
             peripheral.readValue(for: characteristic)
 
         case .failure(let err):
@@ -203,27 +208,15 @@ public class BluetoothLEClient: CAPPlugin {
             switch getValueData(call) {
 
             case .success(let data):
-                switch WRITE_TYPE {
-                case .withResponse:
-                    saveCall(call, type: .write)
-                    peripheral.writeValue(data, for: characteristic, type: WRITE_TYPE)
-
-                case .withoutResponse:
-                    if peripheral.canSendWriteWithoutResponse {
-                        print("[ios] peripheral is already ready for write without response")
-                        peripheral.writeValue(data, for: characteristic, type: WRITE_TYPE)
-
-                        let encodedValue = encodeToByteArray(characteristic.value ?? Data())
-                        let data: PluginResultData = [
-                            .id: externalUuidString(peripheral.identifier),
-                            .value: encodedValue
-                        ]
-
-                        call.resolve(data)
-                    } else {
-                        // resolved when peripheral is ready
-                        saveCall(call, type: .writeWithoutResponse)
-                    }
+                if characteristic.properties.contains(.write) {
+                    print("[ios] writing   \(externalUuidString(characteristic.uuid))")
+                    saveCall(call, characteristic: characteristic, type: .write)
+                    peripheral.writeValue(data, for: characteristic, type: .withResponse)
+                } else {
+                    //                    if peripheral.canSendWriteWithoutResponse {
+                    print("[ios] writwor   \(externalUuidString(characteristic.uuid))")
+                    peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+                    call.resolve()
                 }
 
 
@@ -357,8 +350,20 @@ public class BluetoothLEClient: CAPPlugin {
         savedCalls[type] = call
     }
 
+    private func saveCall(_ call: CAPPluginCall, characteristic: CBCharacteristic, type: CharacteristicCallType) {
+        if savedCharacteristicCalls[characteristic.uuid] == nil {
+            savedCharacteristicCalls[characteristic.uuid] = [type : call]
+        } else {
+            savedCharacteristicCalls[characteristic.uuid]?[type] = call
+        }
+    }
+
     private func popSavedCall(type: CallType) -> CAPPluginCall? {
         return savedCalls.removeValue(forKey: type)
+    }
+
+    private func popSavedCall(characteristic: CBCharacteristic, type: CharacteristicCallType) -> CAPPluginCall? {
+        return savedCharacteristicCalls[characteristic.uuid]?.removeValue(forKey: type)
     }
 
     private func getUuid(call: CAPPluginCall, key: String) -> CBUUID? {
@@ -640,11 +645,15 @@ extension BluetoothLEClient: CBPeripheralDelegate {
 
         notifyListeners(externalUuidString(characteristic.uuid), data: data)
 
-        if let call = popSavedCall(type: .read) {
+        print("[ios] updated   \(externalUuidString(characteristic.uuid))")
+
+        if let call = popSavedCall(characteristic: characteristic, type: .read) {
+            print("[ios] resolving \(externalUuidString(characteristic.uuid)) (read)")
             call.resolve(data)
-        } else if let call = popSavedCall(type: .write) {
-            call.resolve(data)
-        } else if let call = popSavedCall(type: .writeWithoutResponse) {
+        }
+
+        if let call = popSavedCall(characteristic: characteristic, type: .write) {
+            print("[ios] resolving \(externalUuidString(characteristic.uuid)) (write)")
             call.resolve(data)
         }
     }
@@ -656,11 +665,11 @@ extension BluetoothLEClient: CBPeripheralDelegate {
         }
 
         print("[iOS] wrote \(String(describing: characteristic.value)) to \(characteristic.uuid.uuidString)")
-    }
 
-    public func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
-        print("[ios] peripheral is now ready for write without response")
-        guard let call = popSavedCall(type: .writeWithoutResponse) else { return }
-        write(call);
+
+        if let call = popSavedCall(characteristic: characteristic, type: .write) {
+            print("[ios] resolving \(externalUuidString(characteristic.uuid)) (write)")
+            call.resolve()
+        }
     }
 }
