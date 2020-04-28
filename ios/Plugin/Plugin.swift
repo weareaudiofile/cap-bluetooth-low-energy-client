@@ -100,6 +100,7 @@ public class BluetoothLEClient: CAPPlugin {
     let scanTimeout = 2000
     var stopOnFirstResult = false
     var scanResults: [ScanResult] = []
+    var knownPeripherals: [String: CBPeripheral] = [:]
     var connectedPeripherals: [String: CBPeripheral] = [:]
     var servicesAwaitingDiscovery: [String: Set<CBService>] = [:]
 
@@ -582,6 +583,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
     }
 
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        knownPeripherals[externalUuidString(peripheral.identifier)] = peripheral
         scanResults.append(ScanResult(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI))
 
         if (stopOnFirstResult) {
