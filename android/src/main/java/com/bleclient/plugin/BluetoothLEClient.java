@@ -109,6 +109,7 @@ public class BluetoothLEClient extends Plugin {
     static final String keyErrorValueSet = "Failed to set value";
     static final String keyErrorValueWrite = "Failed to write value";
     static final String keyErrorValueRead = "Failed to read value";
+    static final String keyErrorValueDisconnected = "Device is disconnected";
 
 
     static final String keyOperationConnect = "connectCallback";
@@ -119,12 +120,14 @@ public class BluetoothLEClient extends Plugin {
     static final String keyOperationRead = "readCharacteristicCallback";
     static final String keyOperationWrite = "writeCharacteristicCallback";
 
+    private static final String keyEventDeviceDisconnected = "deviceDisconnected";
+
     static final int clientCharacteristicConfigurationUuid = 0x2902;
 
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner bleScanner;
 
-    private ScanCallback scanCallback;
+    private BLEScanCallback scanCallback;
     private HashMap<String, BluetoothDevice> availableDevices = new HashMap<String, BluetoothDevice>();
     private HashMap<String, Object> connections = new HashMap<>();
 
@@ -183,21 +186,41 @@ public class BluetoothLEClient extends Plugin {
 
                         PluginCall call = (PluginCall) connection.get(keyOperationDisconnect);
 
-                        if (call == null) {
-                            break;
+                        if (call != null) {
+                            JSObject ret = new JSObject();
+                            addProperty(ret, keyDisconnected, true);
+                            call.resolve(ret);
                         }
 
-                        JSObject ret = new JSObject();
-                        addProperty(ret, keyDisconnected, true);
-                        call.resolve(ret);
-
                         connection.remove(keyOperationDisconnect);
+
+                        // If disconnected, all stored calls must error
+                        for (Object value : connection.values()) {
+                            if (value instanceof PluginCall) {
+                                PluginCall storedCall = (PluginCall) value;
+                                storedCall.error(keyErrorValueDisconnected);
+                            }
+                        }
+
                         connections.remove(address);
+
+                        JSObject data = new JSObject();
+                        data.put(keyAddress, address);
+                        notifyListeners(keyEventDeviceDisconnected, data);
                         break;
                     }
                 }
 
             } else {
+
+
+                // If disconnected, all stored calls must error
+                for (Object value : connection.values()) {
+                    if (value instanceof PluginCall) {
+                        PluginCall storedCall = (PluginCall) value;
+                        storedCall.error(keyErrorValueDisconnected);
+                    }
+                }
 
 
                 if (connection.get(keyOperationConnect) != null) {
