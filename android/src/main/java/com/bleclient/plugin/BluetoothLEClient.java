@@ -88,6 +88,7 @@ public class BluetoothLEClient extends Plugin {
     static final String keyDeviceType = "type";
     static final String keyBondState = "bondState";
     static final String keyDeviceName = "name";
+    static final String keyRssi = "rssi";
     static final String keyCharacterisicDescripors = "descriptors";
     static final String keyCharacteristicProperies = "properties";
     static final String keyIsPrimaryService = "isPrimary";
@@ -130,7 +131,7 @@ public class BluetoothLEClient extends Plugin {
     private BluetoothLeScanner bleScanner;
 
     private BLEScanCallback scanCallback;
-    private HashMap<String, BluetoothDevice> availableDevices = new HashMap<String, BluetoothDevice>();
+    private HashMap<String, Device> availableDevices = new HashMap<>();
     private HashMap<String, Object> connections = new HashMap<>();
 
     private enum BLECommandType {
@@ -158,6 +159,20 @@ public class BluetoothLEClient extends Plugin {
     BLECommand commandInProgress;
     private Boolean queueIsBusy() {
         return commandInProgress != null;
+    }
+
+    private static final class Device {
+        BluetoothDevice device;
+        int rssi;
+
+        Device(ScanResult result) {
+            this.device = result.getDevice();
+            this.rssi = result.getRssi();
+        }
+
+        public String getAddress() {
+            return this.device.getAddress();
+        }
     }
 
     private BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
@@ -536,7 +551,6 @@ public class BluetoothLEClient extends Plugin {
     };
 
     private class BLEScanCallback extends ScanCallback {
-        private List<ParcelUuid> serviceUuids;
         private Runnable timeoutCallback;
         private Integer timeout;
         private Boolean stopOnFirstResult;
@@ -557,9 +571,10 @@ public class BluetoothLEClient extends Plugin {
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
 
+            Device device = new Device(result);
+            availableDevices.put(device.getAddress(), device);
 
             if (stopOnFirstResult && availableDevices.size() > 0) {
-                Log.d(getLogTag(), "stopping discovery early");
                 this.handler.removeCallbacks(this.timeoutCallback);
                 this.handler.post(this.timeoutCallback);
             }
@@ -634,7 +649,7 @@ public class BluetoothLEClient extends Plugin {
     public void scan(PluginCall call) {
 
         bleScanner = bluetoothAdapter.getBluetoothLeScanner();
-        availableDevices = new HashMap<String, BluetoothDevice>();
+        availableDevices = new HashMap<>();
 
         ScanSettings settings = new ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -1432,14 +1447,18 @@ public class BluetoothLEClient extends Plugin {
 
     }
 
-    private JSObject createBLEDeviceResult(BluetoothDevice device) {
+    private JSObject createBLEDeviceResult(Device scanRecord) {
 
         JSObject ret = new JSObject();
+
+        BluetoothDevice device = scanRecord.device;
+        int rssi = scanRecord.rssi;
 
         addProperty(ret, keyDeviceName, device.getName());
         addProperty(ret, keyAddress, device.getAddress());
         addProperty(ret, keyBondState, device.getBondState());
         addProperty(ret, keyDeviceType, device.getType());
+        addProperty(ret, keyRssi, rssi);
 
         return ret;
     }
@@ -1551,10 +1570,10 @@ public class BluetoothLEClient extends Plugin {
 
         ArrayList<JSObject> scanResults = new ArrayList<>();
 
-        for (Map.Entry<String, BluetoothDevice> entry : availableDevices.entrySet()) {
+        for (Map.Entry<String, Device> entry : availableDevices.entrySet()) {
 
-            BluetoothDevice device = entry.getValue();
-            scanResults.add(createBLEDeviceResult(device));
+            Device record = entry.getValue();
+            scanResults.add(createBLEDeviceResult(record));
         }
 
         return JSArray.from(scanResults.toArray());
