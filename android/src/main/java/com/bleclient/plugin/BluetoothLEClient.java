@@ -1191,7 +1191,7 @@ public class BluetoothLEClient extends Plugin {
     }
 
     @PluginMethod()
-    public void getSetvice(PluginCall call) {
+    public void getService(PluginCall call) {
 
         String address = call.getString(keyAddress);
 
@@ -1209,7 +1209,7 @@ public class BluetoothLEClient extends Plugin {
 
         BluetoothGatt peripheral = (BluetoothGatt) connection.get(keyPeripheral);
 
-        AnyUuid propertyService = getUuid(call, keyUuid);
+        AnyUuid propertyService = getUuid(call, keyService);
 
         if (!propertyService.isValid) {
             call.reject(keyErrorServiceMissing);
