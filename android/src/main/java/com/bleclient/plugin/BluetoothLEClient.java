@@ -124,6 +124,8 @@ public class BluetoothLEClient extends Plugin {
 
     static final int clientCharacteristicConfigurationUuid = 0x2902;
 
+    private static final int defaultScanTimeout = 2000;
+
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner bleScanner;
 
@@ -673,10 +675,10 @@ public class BluetoothLEClient extends Plugin {
 
 
         List<UUID> uuids = getServiceUuids(call.getArray(keyServices));
-        Integer timeout = call.getInt(keyTimeout, 2000);
+        Integer timeout = call.getInt(keyTimeout, defaultScanTimeout);
         Boolean stopOnFirstResult = call.getBoolean(keyStopOnFirstResult, false);
 
-        scanCallback = new BLEScanCallback(uuids, this::stopScan, 30000, stopOnFirstResult);
+        scanCallback = new BLEScanCallback(this::stopScan, timeout, stopOnFirstResult);
 
         List<ScanFilter> filters = new ArrayList<ScanFilter>();
 
