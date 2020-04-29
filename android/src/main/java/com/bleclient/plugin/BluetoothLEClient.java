@@ -689,8 +689,10 @@ public class BluetoothLEClient extends Plugin {
 
         if(connection != null){
 
-            boolean isAlreadyConnected = (Integer) connection.get(keyConnectionState) == BluetoothProfile.STATE_CONNECTED;
-            boolean servicesDiscovered = (Integer) connection.get(keyDiscovered) == SERVICES_DISCOVERED;
+            Integer connectionStateRaw = (Integer) connection.get(keyConnectionState);
+            Integer servicesDiscoveredRaw = (Integer) connection.get(keyDiscovered);
+            boolean isAlreadyConnected =  connectionStateRaw != null && connectionStateRaw == BluetoothProfile.STATE_CONNECTED;
+            boolean servicesDiscovered =  servicesDiscoveredRaw != null && servicesDiscoveredRaw == SERVICES_DISCOVERED;
 
             if(isAlreadyConnected && servicesDiscovered ){
                 JSObject ret = new JSObject();
