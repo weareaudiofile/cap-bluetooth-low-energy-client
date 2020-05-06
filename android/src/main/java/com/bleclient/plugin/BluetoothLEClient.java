@@ -126,6 +126,7 @@ public class BluetoothLEClient extends Plugin {
     static final String keyOperationWrite = "writeCharacteristicCallback";
 
     private static final String keyEventDeviceDisconnected = "deviceDisconnected";
+    private static final String keyEventDeviceFound = "deviceFound";
 
     static final int clientCharacteristicConfigurationUuid = 0x2902;
 
@@ -577,6 +578,9 @@ public class BluetoothLEClient extends Plugin {
 
             Device device = new Device(result);
             availableDevices.put(device.getAddress(), device);
+
+            JSObject payload = createBLEDeviceResult(device);
+            notifyListeners(keyEventDeviceFound, payload);
 
             if (stopOnFirstResult && availableDevices.size() > 0) {
                 this.handler.removeCallbacks(this.timeoutCallback);

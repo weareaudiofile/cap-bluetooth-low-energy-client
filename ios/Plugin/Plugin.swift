@@ -12,6 +12,7 @@ extension String {
     static var characteristics = "characteristics"
     static var connected = "connected"
     static var deviceDisconnected = "deviceDisconnected"
+    static var deviceFound = "deviceFound"
     static var devices = "devices"
     static var disconnected = "disconnected"
     static var discovered  = "discovered"
@@ -306,14 +307,7 @@ public class BluetoothLEClient: CAPPlugin {
         }
 
         if let call = popSavedCall(type: .scan) {
-            let devices: [PluginResultData] = scanResults.map {
-                return [
-                    .name: $0.peripheral.name ?? "",
-                    .id: externalUuidString($0.peripheral.identifier),
-                    .rssi: $0.rssi
-                ]
-            }
-
+            let devices: [PluginResultData] = scanResults.map(serialize)
             call.resolve([ .devices: devices ])
         }
     }
@@ -419,6 +413,14 @@ public class BluetoothLEClient: CAPPlugin {
 
     private func serviceCharacteristic(service: CBService, uuid: CBUUID) -> CBCharacteristic? {
         return service.characteristics?.first { $0.uuid == uuid }
+    }
+
+    private func serialize(_ scanResult: ScanResult) -> PluginResultData {
+        return [
+            .name: scanResult.peripheral.name ?? "",
+            .id: externalUuidString(scanResult.peripheral.identifier),
+            .rssi: scanResult.rssi
+        ]
     }
 
     private func serialize(_ service: CBService) -> PluginResultData {
@@ -584,7 +586,10 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
 
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         knownPeripherals[externalUuidString(peripheral.identifier)] = peripheral
-        scanResults.append(ScanResult(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI))
+        let scanResult = ScanResult(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
+        scanResults.append(scanResult)
+
+        notifyListeners(.deviceFound, data: serialize(scanResult))
 
         if (stopOnFirstResult) {
             stopScan()

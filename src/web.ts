@@ -34,6 +34,9 @@ import {
 import {base64ToBytes} from "./utils/utils";
 import {NotConnectedError, OptionsRequiredError} from "./utils/errors";
 
+const eventDeviceDisconnected = "deviceDisconnected";
+const eventDeviceFound = "deviceFound";
+
 interface BluetoothProvider {
   bluetooth: {
     requestDevice: (options: {
@@ -110,6 +113,8 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
       const {id, name} = device;
       this.devices.set(id, device);
 
+      this.notifyListeners(eventDeviceFound, device);
+
       return {devices: [{name, id}]};
 
     } catch (e) {
@@ -141,7 +146,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
 
         const device = this.devices.get(id);
         device.addEventListener('gattserverdisconnected', () => {
-          this.notifyListeners('deviceDisconnected', {id});
+          this.notifyListeners(eventDeviceDisconnected, {id});
         })
         const gatt = await device.gatt.connect();
         const connection = new Map();
