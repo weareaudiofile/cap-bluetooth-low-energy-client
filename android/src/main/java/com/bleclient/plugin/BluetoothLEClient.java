@@ -1,6 +1,7 @@
 package com.bleclient.plugin;
 
 import android.Manifest;
+import android.app.Instrumentation;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -21,6 +22,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.ParcelUuid;
+import android.preference.PreferenceManager;
 import android.util.Base64;
 import android.util.Log;
 
@@ -122,6 +124,8 @@ public class BluetoothLEClient extends Plugin {
     static final String keyOperationWriteDescriptor = "writeDescriptorCallback";
     static final String keyOperationRead = "readCharacteristicCallback";
     static final String keyOperationWrite = "writeCharacteristicCallback";
+
+    private static final String keyEventDeviceDisconnected = "deviceDisconnected";
 
     static final int clientCharacteristicConfigurationUuid = 0x2902;
 
@@ -250,7 +254,7 @@ public class BluetoothLEClient extends Plugin {
 
                         JSObject data = new JSObject();
                         data.put(keyAddress, address);
-                        notifyListeners("deviceDisconnected", data);
+                        notifyListeners(keyEventDeviceDisconnected, data);
                         break;
                     }
                 }
