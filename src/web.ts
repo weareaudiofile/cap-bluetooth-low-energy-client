@@ -113,7 +113,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
       const {id, name} = device;
       this.devices.set(id, device);
 
-      this.notifyListeners(eventDeviceFound, device);
+      this.notifyListeners(eventDeviceFound, {name, id});
 
       return {devices: [{name, id}]};
 
