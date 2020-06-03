@@ -561,11 +561,19 @@ public class BluetoothLEClient extends Plugin {
         private Boolean stopOnFirstResult;
         private Handler handler;
 
-        public BLEScanCallback(Runnable timeoutCallback, Integer timeout, Boolean stopOnFirstResult) {
+        public BLEScanCallback(List<UUID> serviceUuids, Runnable timeoutCallback, Integer timeout, Boolean stopOnFirstResult) {
             this.timeoutCallback = timeoutCallback;
             this.timeout = timeout;
             this.stopOnFirstResult = stopOnFirstResult;
             this.handler = new Handler();
+
+            List<ParcelUuid> parcelUuids = new ArrayList<>();
+
+            for (UUID uuid : serviceUuids) {
+                parcelUuids.add(new ParcelUuid(uuid));
+            }
+
+            this.serviceUuids = parcelUuids;
         }
 
         public void startScanTimeout() {
@@ -576,11 +584,31 @@ public class BluetoothLEClient extends Plugin {
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
 
-            Device device = new Device(result);
-            availableDevices.put(device.getAddress(), device);
+            BluetoothDevice device = result.getDevice();
+            ScanRecord scanRecord = result.getScanRecord();
 
-            JSObject payload = createBLEDeviceResult(device);
-            notifyListeners(keyEventDeviceFound, payload);
+            List<ParcelUuid> services = scanRecord.getServiceUuids();
+
+            if (this.serviceUuids.size() > 0) {
+                if (services == null) {
+                    Log.d(getLogTag(), "skipping " + device.getAddress() + ", ad contains no services");
+                    return;
+                } else {
+                    Log.d(getLogTag(), device.getAddress() + " advertises " + services.toString());
+                }
+
+                for (ParcelUuid uuid : this.serviceUuids) {
+                    if (!services.contains(uuid)) {
+                        Log.d(getLogTag(), "skipping " + device.getAddress() + ", ad missing " + uuid.toString());
+                        return;
+                    }
+                    Log.d(getLogTag(), device.getAddress() + " advertises " + uuid.toString());
+                }
+            }
+
+            if (!availableDevices.containsKey(device.getAddress())) {
+                availableDevices.put(device.getAddress(), device);
+            }
 
             if (stopOnFirstResult && availableDevices.size() > 0) {
                 this.handler.removeCallbacks(this.timeoutCallback);
@@ -677,6 +705,10 @@ public class BluetoothLEClient extends Plugin {
             filters.add(filter);
         }
 
+        filters = new ArrayList<>();
+
+        Log.i(getLogTag(),"filters: " + filters.toString());
+
         bleScanner.startScan(filters, settings, scanCallback);
         scanCallback.startScanTimeout();
 
@@ -697,10 +729,8 @@ public class BluetoothLEClient extends Plugin {
 
         if(connection != null){
 
-            Integer connectionStateRaw = (Integer) connection.get(keyConnectionState);
-            Integer servicesDiscoveredRaw = (Integer) connection.get(keyDiscovered);
-            boolean isAlreadyConnected =  connectionStateRaw != null && connectionStateRaw == BluetoothProfile.STATE_CONNECTED;
-            boolean servicesDiscovered =  servicesDiscoveredRaw != null && servicesDiscoveredRaw == SERVICES_DISCOVERED;
+            boolean isAlreadyConnected = (Integer) connection.get(keyConnectionState) == BluetoothProfile.STATE_CONNECTED;
+            boolean servicesDiscovered = (Integer) connection.get(keyDiscovered) == SERVICES_DISCOVERED;
 
             if(isAlreadyConnected && servicesDiscovered ){
                 JSObject ret = new JSObject();
