@@ -178,6 +178,10 @@ public class BluetoothLEClient extends Plugin {
         public String getAddress() {
             return this.device.getAddress();
         }
+
+        public String getName() {
+            return this.device.getName();
+        }
     }
 
     private BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
@@ -560,6 +564,7 @@ public class BluetoothLEClient extends Plugin {
         private Integer timeout;
         private Boolean stopOnFirstResult;
         private Handler handler;
+        private List<ParcelUuid> serviceUuids;
 
         public BLEScanCallback(List<UUID> serviceUuids, Runnable timeoutCallback, Integer timeout, Boolean stopOnFirstResult) {
             this.timeoutCallback = timeoutCallback;
@@ -584,30 +589,27 @@ public class BluetoothLEClient extends Plugin {
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
 
-            BluetoothDevice device = result.getDevice();
+            Device device = new Device(result);
             ScanRecord scanRecord = result.getScanRecord();
 
             List<ParcelUuid> services = scanRecord.getServiceUuids();
 
             if (this.serviceUuids.size() > 0) {
                 if (services == null) {
-                    Log.d(getLogTag(), "skipping " + device.getAddress() + ", ad contains no services");
                     return;
-                } else {
-                    Log.d(getLogTag(), device.getAddress() + " advertises " + services.toString());
                 }
 
                 for (ParcelUuid uuid : this.serviceUuids) {
                     if (!services.contains(uuid)) {
-                        Log.d(getLogTag(), "skipping " + device.getAddress() + ", ad missing " + uuid.toString());
                         return;
                     }
-                    Log.d(getLogTag(), device.getAddress() + " advertises " + uuid.toString());
                 }
             }
 
-            if (!availableDevices.containsKey(device.getAddress())) {
+            if (this.isNewDevice(device)) {
                 availableDevices.put(device.getAddress(), device);
+                JSObject payload = createBLEDeviceResult(device);
+                notifyListeners(keyEventDeviceFound, payload);
             }
 
             if (stopOnFirstResult && availableDevices.size() > 0) {
@@ -623,6 +625,16 @@ public class BluetoothLEClient extends Plugin {
         public void onScanFailed(int errorCode) {
             Log.e(getLogTag(), "BLE scan failed with code " + errorCode);
             return;
+        }
+
+        private boolean isNewDevice(Device device) {
+            Device saved = availableDevices.get(device.getAddress());
+
+            if (saved == null) {
+                return true;
+            }
+
+            return saved.getName() == device.getName();
         }
     }
 
@@ -696,7 +708,7 @@ public class BluetoothLEClient extends Plugin {
         Integer timeout = call.getInt(keyTimeout, defaultScanTimeout);
         Boolean stopOnFirstResult = call.getBoolean(keyStopOnFirstResult, false);
 
-        scanCallback = new BLEScanCallback(this::stopScan, timeout, stopOnFirstResult);
+        scanCallback = new BLEScanCallback(uuids, this::stopScan, timeout, stopOnFirstResult);
 
         List<ScanFilter> filters = new ArrayList<>();
 
