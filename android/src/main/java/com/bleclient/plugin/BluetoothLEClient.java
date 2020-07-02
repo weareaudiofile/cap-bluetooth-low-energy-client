@@ -266,15 +266,19 @@ public class BluetoothLEClient extends Plugin {
 
             } else {
 
+                if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    JSObject data = new JSObject();
+                    data.put(keyAddress, address);
+                    notifyListeners(keyEventDeviceDisconnected, data);
 
-                // If disconnected, all stored calls must error
-                for (Object value : connection.values()) {
-                    if (value instanceof PluginCall) {
-                        PluginCall storedCall = (PluginCall) value;
-                        storedCall.error(keyErrorValueDisconnected);
+                    // If disconnected, all stored calls must error
+                    for (Object value : connection.values()) {
+                        if (value instanceof PluginCall) {
+                            PluginCall storedCall = (PluginCall) value;
+                            storedCall.error(keyErrorValueDisconnected);
+                        }
                     }
                 }
-
 
                 if (connection.get(keyOperationConnect) != null) {
 
