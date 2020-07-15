@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelUuid;
 import android.preference.PreferenceManager;
 import android.util.Base64;
@@ -160,7 +161,7 @@ public class BluetoothLEClient extends Plugin {
     }
 
     private ConcurrentLinkedQueue<BLECommand> queue = new ConcurrentLinkedQueue<BLECommand>();
-    Handler commandHandler = new Handler();
+    Handler commandHandler = new Handler(Looper.getMainLooper());
     BLECommand commandInProgress;
     private Boolean queueIsBusy() {
         return commandInProgress != null;
