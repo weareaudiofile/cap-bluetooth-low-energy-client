@@ -780,7 +780,7 @@ public class BluetoothLEClient extends Plugin {
         con.put(keyDiscovered, SERVICES_UNDISCOVERED);
         con.put(keyOperationConnect, call);
 
-        BluetoothGatt gatt = bluetoothDevice.connectGatt(getContext(), autoConnect, bluetoothGattCallback);
+        BluetoothGatt gatt = bluetoothDevice.connectGatt(getContext(), autoConnect, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE);
 
         con.put(keyPeripheral, gatt);
         connections.put(address, con);
