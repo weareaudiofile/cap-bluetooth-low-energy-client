@@ -279,6 +279,8 @@ public class BluetoothLEClient extends Plugin {
                             storedCall.error(keyErrorValueDisconnected);
                         }
                     }
+
+                    connections.remove(address);
                 }
 
                 if (connection.get(keyOperationConnect) != null) {
