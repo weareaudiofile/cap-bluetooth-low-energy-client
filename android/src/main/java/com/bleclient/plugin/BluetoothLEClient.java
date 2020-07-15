@@ -641,7 +641,11 @@ public class BluetoothLEClient extends Plugin {
                 return true;
             }
 
-            return saved.getName() == device.getName();
+            if (saved.getName() == null) {
+                return device.getName() == null;
+            }
+
+            return saved.getName().equals(device.getName());
         }
     }
 
