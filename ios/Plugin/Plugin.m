@@ -8,6 +8,7 @@ CAP_PLUGIN(BluetoothLEClient, "BluetoothLEClient",
            CAP_PLUGIN_METHOD(isEnabled, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(enable, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(scan, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(stopScan, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(connect, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(discover, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(disconnect, CAPPluginReturnPromise);

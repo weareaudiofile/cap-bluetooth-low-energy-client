@@ -148,7 +148,7 @@ public class BluetoothLEClient: CAPPlugin {
             manager?.scanForPeripherals(withServices: services, options: nil)
 
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeout)) {
-                self.stopScan()
+                self.stopScanInProgress()
             }
 
         case .failure(let err):
@@ -157,7 +157,7 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func stopScan(_ call: CAPPluginCall) {
-        stopScan()
+        stopScanInProgress()
         call.resolve([ .stopped: true ]);
     }
 
@@ -308,7 +308,7 @@ public class BluetoothLEClient: CAPPlugin {
         }
     }
 
-    private func stopScan() {
+    private func stopScanInProgress() {
         if let manager = manager, manager.isScanning {
             manager.stopScan()
         }
@@ -599,7 +599,7 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
         notifyListeners(.deviceFound, data: serialize(scanResult))
 
         if (stopOnFirstResult) {
-            stopScan()
+            stopScanInProgress()
         }
     }
 
