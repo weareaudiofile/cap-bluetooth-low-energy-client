@@ -32,6 +32,7 @@ extension String {
     static var service = "service"
     static var services = "services"
     static var stopOnFirstResult = "stopOnFirstResult"
+    static var stopped = "stopped"
     static var timeout = "timeout"
     static var uuid = "uuid"
     static var value = "value"
@@ -41,6 +42,7 @@ extension String {
 
 enum CallType {
     case scan
+    case stopScan
     case connect
     case disconnect
     case discover
@@ -152,6 +154,11 @@ public class BluetoothLEClient: CAPPlugin {
         case .failure(let err):
             call.error(err.errorDescription, err)
         }
+    }
+
+    @objc func stopScan(_ call: CAPPluginCall) {
+        stopScan()
+        call.resolve([ .stopped: true ]);
     }
 
     @objc func connect(_ call: CAPPluginCall) {

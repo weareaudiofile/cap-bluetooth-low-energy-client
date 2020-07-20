@@ -23,6 +23,7 @@ import {
   BluetoothGATTService,
   BluetoothGATTServiceDiscoveryOptions,
   BluetoothGATTServiceDiscoveryResult,
+  BluetoothGATTStopScanResult,
   BluetoothLEClientPlugin,
   GATTCharacteristicProperties,
   GetCharacteristicOptions,
@@ -120,6 +121,13 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
     } catch (e) {
       return Promise.reject(e);
     }
+  }
+
+  /**
+   * Not yet supported by web bluetooth, always succeeds
+   */
+  async stopScan(): Promise<BluetoothGATTStopScanResult>{
+    return { stopped: true };
   }
 
   async connect( options: BluetoothGATTConnectOptions):Promise<BluetoothGATTConnectResult>{

@@ -21,6 +21,8 @@ export interface BluetoothLEClientPlugin extends WebPlugin{
 
   scan(options: BluetoothGATTScanOptions): Promise<BluetoothGATTScanResults>;
 
+  stopScan(): Promise<BluetoothGATTStopScanResult>;
+
   connect(options: BluetoothGATTConnectOptions): Promise<BluetoothGATTConnectResult>;
 
   discover(options: BluetoothGATTServiceDiscoveryOptions): Promise<BluetoothGATTServiceDiscoveryResult>;
@@ -79,6 +81,10 @@ export interface BluetoothGATTPeripheral{
 
 export interface BluetoothGATTScanResults{
   devices: BluetoothGATTPeripheral[]
+}
+
+export interface BluetoothGATTStopScanResult{
+  stopped: true;
 }
 
 export interface BluetoothGATTConnectOptions{

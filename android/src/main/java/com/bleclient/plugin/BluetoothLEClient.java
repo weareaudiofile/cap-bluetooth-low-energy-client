@@ -719,7 +719,7 @@ public class BluetoothLEClient extends Plugin {
         Integer timeout = call.getInt(keyTimeout, defaultScanTimeout);
         Boolean stopOnFirstResult = call.getBoolean(keyStopOnFirstResult, false);
 
-        scanCallback = new BLEScanCallback(uuids, this::stopScan, timeout, stopOnFirstResult);
+        scanCallback = new BLEScanCallback(uuids, this::stopScanInProgress, timeout, stopOnFirstResult);
 
         List<ScanFilter> filters = new ArrayList<>();
 
@@ -736,6 +736,12 @@ public class BluetoothLEClient extends Plugin {
         scanCallback.startScanTimeout();
 
         saveCall(call);
+    }
+
+    @PluginMethod()
+    public void stopScan(PluginCall call) {
+      stopScanInProgress();
+      call.resolve();
     }
 
     @PluginMethod()
@@ -1491,7 +1497,7 @@ public class BluetoothLEClient extends Plugin {
     }
 
 
-    private void stopScan() {
+    private void stopScanInProgress() {
 
         if (bleScanner == null) {
             bleScanner = bluetoothAdapter.getBluetoothLeScanner();
