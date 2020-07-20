@@ -1,7 +1,6 @@
 package com.bleclient.plugin;
 
 import android.Manifest;
-import android.app.Instrumentation;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -23,7 +22,6 @@ import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelUuid;
-import android.preference.PreferenceManager;
 import android.util.Base64;
 import android.util.Log;
 
@@ -93,6 +91,9 @@ public class BluetoothLEClient extends Plugin {
     static final String keyBondState = "bondState";
     static final String keyDeviceName = "name";
     static final String keyRssi = "rssi";
+    static final String keyAdvertisementData = "advertisementData";
+    static final String keyLocalName = "localName";
+    static final String keyServiceData = "serviceData";
     static final String keyCharacterisicDescripors = "descriptors";
     static final String keyCharacteristicProperies = "properties";
     static final String keyIsPrimaryService = "isPrimary";
@@ -171,10 +172,12 @@ public class BluetoothLEClient extends Plugin {
     private static final class Device {
         BluetoothDevice device;
         int rssi;
+        ScanRecord scanRecord;
 
         Device(ScanResult result) {
             this.device = result.getDevice();
             this.rssi = result.getRssi();
+            this.scanRecord = result.getScanRecord();
         }
 
         public String getAddress() {
@@ -184,6 +187,8 @@ public class BluetoothLEClient extends Plugin {
         public String getName() {
             return this.device.getName();
         }
+
+        public ScanRecord getScanRecord() { return this.scanRecord; }
     }
 
     private BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
@@ -1536,8 +1541,39 @@ public class BluetoothLEClient extends Plugin {
         addProperty(ret, keyBondState, device.getBondState());
         addProperty(ret, keyDeviceType, device.getType());
         addProperty(ret, keyRssi, rssi);
+        addProperty(ret, keyAdvertisementData, createJSAdvertisementData(scanRecord))
 
         return ret;
+    }
+
+    private JSObject createJSObjectFromServiceData(Map<ParcelUuid, byte[]> map) {
+      JSObject ret = new JSObject();
+
+      for (Map.Entry<ParcelUuid, byte[]> entry : map) {
+        String key = entry.getKey().toString();
+        JSArray value = jsByteArray(entry.getValue());
+        addProperty(ret, key, value);
+      }
+
+      return ret;
+    }
+
+    private JSObject createJSAdvertisementData(ScanRecord scanRecord) {
+      JSObject ret = new JSObject();
+
+      String localName = scanRecord.getDeviceName();
+      Map<ParcelUuid, byte[]> serviceData = scanRecord.getServiceData();
+
+      if (localName != null) {
+        addProperty(ret, keyLocalName, localName);
+      }
+
+      if (serviceData != null) {
+        JSObject data = createJSObjectFromServiceData(serviceData);
+        addProperty(ret, keyServiceData, data);
+      }
+
+      return ret;
     }
 
     private JSObject createJSBluetoothGattService(BluetoothGattService service) {

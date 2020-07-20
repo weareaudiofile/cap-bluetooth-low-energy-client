@@ -53,6 +53,9 @@ export interface BluetoothLEClientPlugin extends WebPlugin{
 
 export type BluetoothGATTService = BluetoothGATTServices | number | string;
 export type BluetoothGATTCharacteristic = BluetoothGATTCharacteristics | number | string;
+export type BluetoothGATTAdvertisementDataKey = "localName" | "serviceData";
+export type BluetoothGATTAdvertisementDataValue = string | Record<BluetoothGATTService, BluetoothGATTByteData>
+export type BluetoothGATTAdvertisementData = Record<BluetoothGATTAdvertisementDataKey, BluetoothGATTAdvertisementDataValue>;
 
 export interface BluetoothGATTAvailabilityResult{
   isAvailable: boolean
@@ -76,7 +79,8 @@ export interface BluetoothGATTScanOptions{
 export interface BluetoothGATTPeripheral{
   name: string,
   id: string,
-  rssi?: number
+  rssi?: number,
+  advertisementData?: BluetoothGATTAdvertisementData;
 }
 
 export interface BluetoothGATTScanResults{

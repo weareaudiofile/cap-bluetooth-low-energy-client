@@ -6,6 +6,7 @@ import CoreBluetooth
 private var WRITE_TYPE = CBCharacteristicWriteType.withoutResponse
 
 extension String {
+    static var advertisementData = "advertisementData"
     static var authenticatedSignedWrites = "authenticatedSignedWrites"
     static var broadcast = "broadcast"
     static var characteristic = "characteristic"
@@ -24,12 +25,14 @@ extension String {
     static var isEnabled = "isEnabled"
     static var isPrimary = "isPrimary"
     static var enabled = "enabled"
+    static var localName = "localName"
     static var name = "name"
     static var notify = "notify"
     static var properties = "properties"
     static var read = "read"
     static var rssi = "rssi"
     static var service = "service"
+    static var serviceData = "serviceData"
     static var services = "services"
     static var stopOnFirstResult = "stopOnFirstResult"
     static var stopped = "stopped"
@@ -426,8 +429,33 @@ public class BluetoothLEClient: CAPPlugin {
         return [
             .name: scanResult.peripheral.name ?? "",
             .id: externalUuidString(scanResult.peripheral.identifier),
-            .rssi: scanResult.rssi
+            .rssi: scanResult.rssi,
+            .advertisementData: serialize(scanResult.advertisementData)
         ]
+    }
+
+    private func serialize(_ advertisementData: [String : Any]) -> PluginResultData {
+        var result: PluginResultData = [:];
+
+        if let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID : Data] {
+            result[.serviceData] = serialize(serviceData)
+        }
+
+        if let localName = advertisementData[CBAdvertisementDataLocalNameKey] {
+            result[.localName] = localName
+        }
+
+        return result
+    }
+
+    private func serialize(_ dataMap: [CBUUID : Data]) -> PluginResultData {
+        var result: PluginResultData = [:]
+
+        for (uuid, data) in dataMap {
+            result[uuid.uuidString] = encodeToByteArray(data)
+        }
+
+        return result
     }
 
     private func serialize(_ service: CBService) -> PluginResultData {
