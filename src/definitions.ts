@@ -68,7 +68,7 @@ export type BluetoothGATTEnableResult = {
 
 export interface BluetoothGATTScanOptions{
   services: Array<BluetoothGATTService>
-  optionalServices: Array<BluetoothGATTService>
+  optionalServices?: Array<BluetoothGATTService>
   timeout?: number
   stopOnFirstResult?: Boolean;
 }
