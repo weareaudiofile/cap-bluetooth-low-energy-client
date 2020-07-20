@@ -70,6 +70,7 @@ public class BluetoothLEClient extends Plugin {
     static final String keyConnectionState = "connectionState";
 
     static final String keyEnabled = "enabled";
+    static final String keyDisabled = "disabled";
     static final String keyAvailable = "isAvailable";
     static final String keyAvailableDevices = "devices";
     static final String keyAddress = "id";
@@ -938,7 +939,9 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-
+        JSObject ret = new JSObject();
+        ret.put(keyEnabled, true);
+        call.resolve(ret);
     }
 
     @PluginMethod()
@@ -1023,6 +1026,11 @@ public class BluetoothLEClient extends Plugin {
             call.reject(keyErrorValueWrite);
             return;
         }
+
+
+      JSObject ret = new JSObject();
+      ret.put(keyDisabled, false);
+      call.resolve(ret);
     }
 
     @PluginMethod()
