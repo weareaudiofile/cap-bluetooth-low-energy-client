@@ -30,7 +30,8 @@ import {
   GetCharacteristicResult,
   GetServiceOptions,
   GetServiceResult,
-  BluetoothGATTCharacteristic
+  BluetoothGATTCharacteristic,
+  GetServicesResult
 } from './definitions';
 import {base64ToBytes} from "./utils/utils";
 import {NotConnectedError, OptionsRequiredError} from "./utils/errors";
@@ -356,7 +357,7 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
 
   }
 
-  async getServices(options: GetServiceOptions): Promise<GetServiceResult>{
+  async getServices(options: GetServiceOptions): Promise<GetServicesResult>{
 
     if(!options){
       return Promise.reject(new OptionsRequiredError());

@@ -37,7 +37,7 @@ export interface BluetoothLEClientPlugin extends WebPlugin{
 
   writeDescriptor(options: BluetoothGATTDescriptorWriteOptions): Promise<BluetoothGATTDescriptorWriteResult>;
 
-  getServices(options: GetServiceOptions): Promise<GetServiceResult>;
+  getServices(options: GetServiceOptions): Promise<GetServicesResult>;
 
   getService(options: GetServiceOptions): Promise<GetServiceResult>;
 
@@ -186,7 +186,8 @@ export interface GATTService{
   included?: Array<BluetoothGATTService>
 }
 
-export type GetServiceResult = GATTService | {services: GATTService[]};
+export type GetServiceResult = GATTService;
+export type GetServicesResult = {services: GATTService[]};
 
 export interface GetCharacteristicOptions{
   id: string,
