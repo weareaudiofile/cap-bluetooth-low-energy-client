@@ -19,6 +19,7 @@ import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelUuid;
@@ -833,7 +834,13 @@ public class BluetoothLEClient extends Plugin {
         con.put(keyDiscovered, SERVICES_UNDISCOVERED);
         con.put(keyOperationConnect, call);
 
-        BluetoothGatt gatt = bluetoothDevice.connectGatt(getContext(), autoConnect, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE);
+        BluetoothGatt gatt;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            gatt = bluetoothDevice.connectGatt(getContext(), autoConnect, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE);
+        } else {
+            gatt = bluetoothDevice.connectGatt(getContext(), autoConnect, bluetoothGattCallback);
+        }
 
         con.put(keyPeripheral, gatt);
         connections.put(address, con);
