@@ -92,6 +92,11 @@ struct ScanResult {
     let peripheral: CBPeripheral
     let advertisementData: [String : Any]
     let rssi: NSNumber
+
+    func merging(_ other: ScanResult) -> ScanResult {
+        let advertisementData = self.advertisementData.merging(other.advertisementData) { (_, otherData) in otherData }
+        return ScanResult(peripheral: other.peripheral, advertisementData: advertisementData, rssi: other.rssi)
+    }
 }
 
 /**
@@ -105,7 +110,7 @@ public class BluetoothLEClient: CAPPlugin {
     var state: CBManagerState = .unknown
     let scanTimeout = 2000
     var stopOnFirstResult = false
-    var scanResults: [ScanResult] = []
+    var scanResults: [String: ScanResult] = [:]
     var knownPeripherals: [String: CBPeripheral] = [:]
     var connectedPeripherals: [String: CBPeripheral] = [:]
     var servicesAwaitingDiscovery: [String: Set<CBService>] = [:]
@@ -146,7 +151,7 @@ public class BluetoothLEClient: CAPPlugin {
 
             saveCall(call, type: .scan)
 
-            scanResults = []
+            scanResults = [:]
 
             manager?.scanForPeripherals(withServices: services, options: nil)
 
@@ -317,15 +322,13 @@ public class BluetoothLEClient: CAPPlugin {
         }
 
         if let call = popSavedCall(type: .scan) {
-            let devices: [PluginResultData] = scanResults.map(serialize)
+            let devices: [PluginResultData] = scanResults.values.map(serialize)
             call.resolve([ .devices: devices ])
         }
     }
 
     private func getScannedPeripheral(_ id: String) -> CBPeripheral? {
-        return scanResults
-            .first { externalUuidString($0.peripheral.identifier) == id }?
-            .peripheral
+        return scanResults[id]?.peripheral
     }
 
     private func getConnectedPeripheral(_ id: String) -> CBPeripheral? {
@@ -620,10 +623,13 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
     }
 
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        knownPeripherals[externalUuidString(peripheral.identifier)] = peripheral
-        let scanResult = ScanResult(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
-        scanResults.append(scanResult)
+        let id = externalUuidString(peripheral.identifier)
+        let newScanResult = ScanResult(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
+        let existingScanResult = scanResults[id]
+        let scanResult = existingScanResult?.merging(newScanResult) ?? newScanResult
 
+        knownPeripherals[id] = peripheral
+        scanResults[id] = scanResult
         notifyListeners(.deviceFound, data: serialize(scanResult))
 
         if (stopOnFirstResult) {

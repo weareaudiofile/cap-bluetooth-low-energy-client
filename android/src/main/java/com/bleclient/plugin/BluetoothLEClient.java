@@ -35,7 +35,9 @@ import com.getcapacitor.PluginMethod;
 import org.json.JSONException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -171,24 +173,65 @@ public class BluetoothLEClient extends Plugin {
 
     private static final class Device {
         BluetoothDevice device;
+        List<ParcelUuid> serviceUuids;
+        AdvertisementData advertisementData;
         int rssi;
-        ScanRecord scanRecord;
 
         Device(ScanResult result) {
-            this.device = result.getDevice();
-            this.rssi = result.getRssi();
-            this.scanRecord = result.getScanRecord();
+            this(
+              result.getDevice(),
+              result.getScanRecord().getServiceUuids(),
+              new AdvertisementData(result.getScanRecord()),
+              result.getRssi());
         }
+
+        Device(BluetoothDevice device, List<ParcelUuid> serviceUuids, AdvertisementData advertisementData, int rssi) {
+          this.device = device;
+          this.serviceUuids = serviceUuids;
+          this.advertisementData = advertisementData;
+          this.rssi = rssi;
+        }
+
+        public int getBondState() { return this.device.getBondState(); }
+
+        public int getType() { return this.device.getType(); }
 
         public String getAddress() {
             return this.device.getAddress();
         }
 
         public String getName() {
-            return this.device.getName();
+            return this.advertisementData.localName != null ? this.advertisementData.localName : this.device.getName();
         }
 
-        public ScanRecord getScanRecord() { return this.scanRecord; }
+        public Device merging(Device otherDevice) {
+          List<ParcelUuid> allServiceUuids = new ArrayList<>(this.serviceUuids);
+          allServiceUuids.addAll(otherDevice.serviceUuids);
+          List<ParcelUuid> uniqueServiceUuids = new ArrayList<>(new HashSet<>(allServiceUuids));
+          AdvertisementData advertisementData = this.advertisementData.merging(otherDevice.advertisementData);
+          return new Device(otherDevice.device, uniqueServiceUuids, advertisementData, otherDevice.rssi);
+        }
+    }
+
+    private static final class AdvertisementData {
+        String localName;
+        Map<ParcelUuid, byte[]> serviceData;
+
+        AdvertisementData(ScanRecord scanRecord) {
+          this(scanRecord.getDeviceName(), scanRecord.getServiceData());
+        }
+
+        AdvertisementData(String localName, Map<ParcelUuid, byte[]> serviceData) {
+          this.localName = localName;
+          this.serviceData = serviceData;
+        }
+
+        public AdvertisementData merging(AdvertisementData other) {
+          String localName = other.localName == null ? this.localName : other.localName;
+          Map<ParcelUuid, byte[]> serviceData = new HashMap<>(this.serviceData);
+          serviceData.putAll(other.serviceData);
+          return new AdvertisementData(localName, serviceData);
+        }
     }
 
     private BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
@@ -602,56 +645,54 @@ public class BluetoothLEClient extends Plugin {
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
 
-            Device device = new Device(result);
-            ScanRecord scanRecord = result.getScanRecord();
+            Device newDevice = new Device(result);
 
-            List<ParcelUuid> services = scanRecord.getServiceUuids();
-
-            if (this.serviceUuids.size() > 0) {
-                if (services == null) {
-                    return;
-                }
-
-                for (ParcelUuid uuid : this.serviceUuids) {
-                    if (!services.contains(uuid)) {
-                        return;
-                    }
-                }
+            if (!this.deviceAdvertisesServices(newDevice, this.serviceUuids)) {
+              return;
             }
 
-            if (this.isNewDevice(device)) {
-                availableDevices.put(device.getAddress(), device);
-                JSObject payload = createBLEDeviceResult(device);
-                notifyListeners(keyEventDeviceFound, payload);
+            String address = newDevice.getAddress();
+            Device existingDevice = availableDevices.get(address);
+            Device device;
+
+            if (existingDevice != null) {
+              device = existingDevice.merging(newDevice);
+            } else {
+              device = newDevice;
             }
+
+            availableDevices.put(address, device);
+            JSObject payload = createBLEDeviceResult(device);
+            notifyListeners(keyEventDeviceFound, payload);
 
             if (stopOnFirstResult && availableDevices.size() > 0) {
                 this.handler.removeCallbacks(this.timeoutCallback);
                 this.handler.post(this.timeoutCallback);
             }
 
-            return;
-
         }
 
         @Override
         public void onScanFailed(int errorCode) {
             Log.e(getLogTag(), "BLE scan failed with code " + errorCode);
-            return;
         }
 
-        private boolean isNewDevice(Device device) {
-            Device saved = availableDevices.get(device.getAddress());
+        private boolean deviceAdvertisesServices(Device device, List<ParcelUuid> serviceUuids) {
+          List<ParcelUuid> services = device.serviceUuids;
 
-            if (saved == null) {
-                return true;
+          if (serviceUuids.size() > 0) {
+            if (services == null) {
+              return false;
             }
 
-            if (saved.getName() == null) {
-                return device.getName() == null;
+            for (ParcelUuid uuid : serviceUuids) {
+              if (!services.contains(uuid)) {
+                return false;
+              }
             }
+          }
 
-            return saved.getName().equals(device.getName());
+          return true;
         }
     }
 
@@ -1529,19 +1570,16 @@ public class BluetoothLEClient extends Plugin {
 
     }
 
-    private JSObject createBLEDeviceResult(Device scanRecord) {
+    private JSObject createBLEDeviceResult(Device device) {
 
         JSObject ret = new JSObject();
-
-        BluetoothDevice device = scanRecord.device;
-        int rssi = scanRecord.rssi;
 
         addProperty(ret, keyDeviceName, device.getName());
         addProperty(ret, keyAddress, device.getAddress());
         addProperty(ret, keyBondState, device.getBondState());
         addProperty(ret, keyDeviceType, device.getType());
-        addProperty(ret, keyRssi, rssi);
-        addProperty(ret, keyAdvertisementData, createJSAdvertisementData(scanRecord))
+        addProperty(ret, keyRssi, device.rssi);
+        addProperty(ret, keyAdvertisementData, createJSAdvertisementData(device.advertisementData));
 
         return ret;
     }
@@ -1549,7 +1587,7 @@ public class BluetoothLEClient extends Plugin {
     private JSObject createJSObjectFromServiceData(Map<ParcelUuid, byte[]> map) {
       JSObject ret = new JSObject();
 
-      for (Map.Entry<ParcelUuid, byte[]> entry : map) {
+      for (Map.Entry<ParcelUuid, byte[]> entry : map.entrySet()) {
         String key = entry.getKey().toString();
         JSArray value = jsByteArray(entry.getValue());
         addProperty(ret, key, value);
@@ -1558,11 +1596,11 @@ public class BluetoothLEClient extends Plugin {
       return ret;
     }
 
-    private JSObject createJSAdvertisementData(ScanRecord scanRecord) {
+    private JSObject createJSAdvertisementData(AdvertisementData adData) {
       JSObject ret = new JSObject();
 
-      String localName = scanRecord.getDeviceName();
-      Map<ParcelUuid, byte[]> serviceData = scanRecord.getServiceData();
+      String localName = adData.localName;
+      Map<ParcelUuid, byte[]> serviceData = adData.serviceData;
 
       if (localName != null) {
         addProperty(ret, keyLocalName, localName);
