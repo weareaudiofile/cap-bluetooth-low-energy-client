@@ -339,7 +339,6 @@ public class BluetoothLEClient extends Plugin {
 
                     call.error("Unable to connect to Peripheral");
                     connection.remove(keyOperationConnect);
-                    return;
 
                 } else if (connection.get(keyOperationDisconnect) != null) {
 
@@ -348,8 +347,6 @@ public class BluetoothLEClient extends Plugin {
                     call.error("Unable to disconnect from Peripheral");
                     connection.remove(keyOperationDisconnect);
 
-                    return;
-
                 } else if (connection.get(keyOperationDiscover) != null) {
 
                     PluginCall call = (PluginCall) connection.get(keyOperationDiscover);
@@ -357,11 +354,9 @@ public class BluetoothLEClient extends Plugin {
                     call.error("Unable to discover services for Peripheral");
                     connection.remove(keyOperationDiscover);
 
-                    return;
                 } else {
 
                     Log.e(getLogTag(), "GATT operation unsuccessfull");
-                    return;
 
                 }
 
@@ -515,7 +510,6 @@ public class BluetoothLEClient extends Plugin {
             UUID characteristicUuid = characteristic.getUuid();
 
             BluetoothGattService service = characteristic.getService();
-            UUID serviceUuid = service.getUuid();
 
             byte[] characteristicValue = characteristic.getValue();
 
@@ -697,7 +691,7 @@ public class BluetoothLEClient extends Plugin {
         }
     }
 
-    private class AnyUuid {
+    private static class AnyUuid {
         final Integer intValue;
         final String stringValue;
         final Boolean isValid;
@@ -872,9 +866,6 @@ public class BluetoothLEClient extends Plugin {
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
         gatt.disconnect();
-
-        return;
-
     }
 
     @PluginMethod()
@@ -1281,7 +1272,6 @@ public class BluetoothLEClient extends Plugin {
         if (!success) {
             connection.remove(keyOperationReadDescriptor);
             call.reject(keyErrorValueRead);
-            return;
         }
 
 
@@ -1525,7 +1515,7 @@ public class BluetoothLEClient extends Plugin {
             @Override
             public void run() {
                 try {
-                    Log.d(getLogTag(), "writing data " + command.data);
+                    Log.d(getLogTag(), "writing data " + Arrays.toString(command.data));
                     boolean valueSet = command.characteristic.setValue(command.data);
 
                     if (!valueSet) {
@@ -1539,7 +1529,6 @@ public class BluetoothLEClient extends Plugin {
                     if (!success) {
                         command.call.error(keyErrorValueWrite);
                         completedCommand();
-                        return;
                     }
 
                     // call resolved in onCharacteristicWrite()
@@ -1573,8 +1562,6 @@ public class BluetoothLEClient extends Plugin {
         PluginCall savedCall = getSavedCall();
         savedCall.resolve(ret);
         savedCall.release(getBridge());
-        return;
-
     }
 
     private JSObject createBLEDeviceResult(Device device) {
@@ -1752,7 +1739,7 @@ public class BluetoothLEClient extends Plugin {
             }
 
             JSObject ret = new JSObject();
-            addProperty(ret, keyEnabled, resultCode == 0 ? false : true);
+            addProperty(ret, keyEnabled, resultCode != 0);
             call.resolve(ret);
             call.release(getBridge());
         }
