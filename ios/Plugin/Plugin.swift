@@ -107,6 +107,13 @@ struct ScanResult {
 public class BluetoothLEClient: CAPPlugin {
     var manager: CBCentralManager?
 
+    // Dispatch queues to ensure thread-safety for reads/writes
+    // Manages CAPPluginCall references
+    var callQueue = DispatchQueue(label: "com.capacitor.bluetooth-low-energy-client.call")
+
+    // Manages bookkeeping for CoreBluetooth-related references
+    var cbQueue = DispatchQueue(label: "com.capacitor.bluetooth-low-energy-client.cb")
+
     var state: CBManagerState = .unknown
     let scanTimeout = 2000
     var stopOnFirstResult = false
@@ -149,14 +156,13 @@ public class BluetoothLEClient: CAPPlugin {
             let timeout = call.getInt(.timeout) ?? scanTimeout
             stopOnFirstResult = call.getBool(.stopOnFirstResult) ?? false
 
-            saveCall(call, type: .scan)
+            self.saveCall(call, type: .scan, callbackQueue: self.cbQueue) {
+                self.scanResults = [:]
+                self.manager?.scanForPeripherals(withServices: services, options: nil)
 
-            scanResults = [:]
-
-            manager?.scanForPeripherals(withServices: services, options: nil)
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeout)) {
-                self.stopScanInProgress()
+                self.cbQueue.asyncAfter(deadline: .now() + .milliseconds(timeout)) {
+                    self.stopScanInProgress()
+                }
             }
 
         case .failure(let err):
@@ -165,7 +171,7 @@ public class BluetoothLEClient: CAPPlugin {
     }
 
     @objc func stopScan(_ call: CAPPluginCall) {
-        stopScanInProgress()
+        self.stopScanInProgress()
         call.resolve([ .stopped: true ]);
     }
 
@@ -173,8 +179,9 @@ public class BluetoothLEClient: CAPPlugin {
         switch getScannedPeripheral(call) {
 
         case .success(let peripheral):
-            saveCall(call, type: .connect)
-            manager?.connect(peripheral, options: nil)
+            self.saveCall(call, type: .connect) {
+                self.manager?.connect(peripheral, options: nil)
+            }
 
         case .failure(let err):
             call.error(err.errorDescription, err)
@@ -185,8 +192,9 @@ public class BluetoothLEClient: CAPPlugin {
         switch getConnectedPeripheral(call) {
 
         case .success(let peripheral):
-            saveCall(call, type: .discover)
-            peripheral.discoverServices(nil)
+            self.saveCall(call, type: .discover) {
+                peripheral.discoverServices(nil)
+            }
 
         case .failure(let err):
             call.error(err.errorDescription, err)
@@ -197,8 +205,9 @@ public class BluetoothLEClient: CAPPlugin {
         switch getConnectedPeripheral(call) {
 
         case .success(let peripheral):
-            saveCall(call, type: .disconnect)
-            manager?.cancelPeripheralConnection(peripheral)
+            self.saveCall(call, type: .disconnect) {
+                self.manager?.cancelPeripheralConnection(peripheral)
+            }
 
         case .failure(let err):
             call.error(err.errorDescription, err)
@@ -209,9 +218,12 @@ public class BluetoothLEClient: CAPPlugin {
         switch getPeripheralAndCharacteristic(call) {
 
         case .success(let (peripheral, characteristic)):
-            saveCall(call, characteristic: characteristic, type: .read)
-            print("[ios] reading   \(externalUuidString(characteristic.uuid))")
-            peripheral.readValue(for: characteristic)
+            let charId = externalUuidString(characteristic.uuid)
+
+            self.saveCall(call, characteristic: characteristic, type: .read) {
+                print("[ios] reading   \(charId)")
+                peripheral.readValue(for: characteristic)
+            }
 
         case .failure(let err):
             call.error(err.errorDescription, err)
@@ -222,20 +234,22 @@ public class BluetoothLEClient: CAPPlugin {
         switch getPeripheralAndCharacteristic(call) {
 
         case .success(let (peripheral, characteristic)):
+            let charId = externalUuidString(characteristic.uuid)
+
             switch getValueData(call) {
 
             case .success(let data):
                 if characteristic.properties.contains(.write) {
-                    print("[ios] writing   \(externalUuidString(characteristic.uuid))")
-                    saveCall(call, characteristic: characteristic, type: .write)
-                    peripheral.writeValue(data, for: characteristic, type: .withResponse)
+                    print("[ios] writing   \(charId) (\(data.count) bytes)")
+                    self.saveCall(call, characteristic: characteristic, type: .write) {
+                        peripheral.writeValue(data, for: characteristic, type: .withResponse)
+                    }
                 } else {
-                    //                    if peripheral.canSendWriteWithoutResponse {
-                    print("[ios] writwor   \(externalUuidString(characteristic.uuid))")
+                    // if peripheral.canSendWriteWithoutResponse {
+                    print("[ios] writwor   \(charId))")
                     peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
                     call.resolve()
                 }
-
 
             case .failure(let err):
                 call.error(err.errorDescription, err)
@@ -321,9 +335,12 @@ public class BluetoothLEClient: CAPPlugin {
             manager.stopScan()
         }
 
-        if let call = popSavedCall(type: .scan) {
-            let devices: [PluginResultData] = scanResults.values.map(serialize)
-            call.resolve([ .devices: devices ])
+        self.cbQueue.async {
+            let devices: [PluginResultData] = self.scanResults.values.map(self.serialize)
+
+            self.withSavedCall(type: .scan) { call in
+                call.resolve([ .devices: devices ])
+            }
         }
     }
 
@@ -354,24 +371,51 @@ public class BluetoothLEClient: CAPPlugin {
         return servicesAwaitingDiscovery[id] ?? Set<CBService>()
     }
 
-    private func saveCall(_ call: CAPPluginCall, type: CallType) {
-        savedCalls[type] = call
-    }
+    private func saveCall(_ call: CAPPluginCall, type: CallType, callbackQueue: DispatchQueue, handler: @escaping () -> Void) {
+        self.callQueue.async {
+             self.savedCalls[type] = call
 
-    private func saveCall(_ call: CAPPluginCall, characteristic: CBCharacteristic, type: CharacteristicCallType) {
-        if savedCharacteristicCalls[characteristic.uuid] == nil {
-            savedCharacteristicCalls[characteristic.uuid] = [type : call]
-        } else {
-            savedCharacteristicCalls[characteristic.uuid]?[type] = call
+             callbackQueue.async {
+                 handler()
+             }
         }
     }
 
-    private func popSavedCall(type: CallType) -> CAPPluginCall? {
-        return savedCalls.removeValue(forKey: type)
+    private func saveCall(_ call: CAPPluginCall, type: CallType, handler: @escaping () -> Void) {
+        saveCall(call, type: type, callbackQueue: DispatchQueue.global(qos:.userInitiated), handler: handler)
     }
 
-    private func popSavedCall(characteristic: CBCharacteristic, type: CharacteristicCallType) -> CAPPluginCall? {
-        return savedCharacteristicCalls[characteristic.uuid]?.removeValue(forKey: type)
+    private func saveCall(_ call: CAPPluginCall, characteristic: CBCharacteristic, type: CharacteristicCallType, callbackQueue: DispatchQueue, handler: @escaping () -> Void) {
+        self.callQueue.async {
+            if self.savedCharacteristicCalls[characteristic.uuid] == nil {
+                self.savedCharacteristicCalls[characteristic.uuid] = [:]
+            }
+
+            self.savedCharacteristicCalls[characteristic.uuid]?.updateValue(call, forKey: type)
+            callbackQueue.async {
+                handler()
+            }
+        }
+    }
+
+    private func saveCall(_ call: CAPPluginCall, characteristic: CBCharacteristic, type: CharacteristicCallType, handler: @escaping () -> Void) {
+        saveCall(call, characteristic: characteristic, type: type, callbackQueue: DispatchQueue.global(qos:.userInitiated), handler: handler)
+    }
+
+    private func withSavedCall(type: CallType, handler: @escaping (CAPPluginCall) -> Void) {
+        self.callQueue.async {
+            if let call = self.savedCalls.removeValue(forKey: type) {
+                handler(call)
+            }
+        }
+    }
+
+    private func withSavedCall(characteristic: CBCharacteristic, type: CharacteristicCallType, handler: @escaping (CAPPluginCall) -> Void) {
+        self.callQueue.async {
+            if let call = self.savedCharacteristicCalls[characteristic.uuid]?.removeValue(forKey: type) {
+                handler(call)
+            }
+        }
     }
 
     private func getUuid(call: CAPPluginCall, key: String) -> CBUUID? {
@@ -625,62 +669,82 @@ extension BluetoothLEClient: CBCentralManagerDelegate {
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         let id = externalUuidString(peripheral.identifier)
         let newScanResult = ScanResult(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
-        let existingScanResult = scanResults[id]
-        let scanResult = existingScanResult?.merging(newScanResult) ?? newScanResult
 
-        knownPeripherals[id] = peripheral
-        scanResults[id] = scanResult
-        notifyListeners(.deviceFound, data: serialize(scanResult))
+        cbQueue.async {
+            let existingScanResult = self.scanResults[id]
+            let scanResult = existingScanResult?.merging(newScanResult) ?? newScanResult
 
-        if (stopOnFirstResult) {
-            stopScanInProgress()
+            self.knownPeripherals[id] = peripheral
+            self.scanResults[id] = scanResult
+
+            DispatchQueue.global().async {
+                self.notifyListeners(.deviceFound, data: self.serialize(scanResult))
+            }
+
+            if (self.stopOnFirstResult) {
+                self.stopScanInProgress()
+            }
         }
     }
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         peripheral.delegate = self
-        connectedPeripherals[externalUuidString(peripheral.identifier)] = peripheral
+        let id = externalUuidString(peripheral.identifier)
 
-        if let call = popSavedCall(type: .connect) {
-            call.resolve([
-                .connected: true
-            ])
+        cbQueue.async {
+            self.connectedPeripherals[id] = peripheral
+
+            self.withSavedCall(type: .connect) { call in
+                call.resolve([
+                    .connected: true
+                ])
+            }
         }
     }
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         peripheral.delegate = nil
-        connectedPeripherals.removeValue(forKey: externalUuidString(peripheral.identifier))
+        let id = externalUuidString(peripheral.identifier)
 
-        if let call = popSavedCall(type: .disconnect) {
-            call.resolve([
-                .disconnected: true
-            ])
+        cbQueue.async {
+            self.connectedPeripherals.removeValue(forKey: id)
+
+            self.withSavedCall(type: .disconnect) { call in
+                call.resolve([
+                    .disconnected: true
+                ])
+            }
+
+            DispatchQueue.global().async {
+                self.notifyListeners(.deviceDisconnected, data: [.id : id])
+            }
         }
-
-        notifyListeners(.deviceDisconnected, data: [.id : externalUuidString(peripheral.identifier)])
     }
 }
 
 extension BluetoothLEClient: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        if let services = peripheral.services {
+        guard let services = peripheral.services else { return }
+
+        cbQueue.async {
             for service in services {
-                addServiceAwaitingDiscovery(service)
+                self.addServiceAwaitingDiscovery(service)
                 peripheral.discoverCharacteristics(nil, for: service)
             }
         }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        removeServiceAwaitingDiscovery(service)
+        cbQueue.async {
+            self.removeServiceAwaitingDiscovery(service)
 
-        guard getServicesAwaitingDiscovery(peripheral).isEmpty else { return }
+            guard self.getServicesAwaitingDiscovery(peripheral).isEmpty else { return }
 
-        if let call = popSavedCall(type: .discover) {
-            call.resolve([
-                .discovered: true
-            ])
+            self.withSavedCall(type: .discover) { call in
+                call.resolve([
+                    .discovered: true
+                ])
+            }
         }
     }
 
@@ -691,17 +755,13 @@ extension BluetoothLEClient: CBPeripheralDelegate {
             .value: encodedValue
         ]
 
-        notifyListeners(externalUuidString(characteristic.uuid), data: data)
+        let charId = externalUuidString(characteristic.uuid)
+        self.notifyListeners(charId, data: data)
 
-        print("[ios] updated   \(externalUuidString(characteristic.uuid))")
+        print("[ios] updated   \(charId) (\(encodedValue.count) bytes)")
 
-        if let call = popSavedCall(characteristic: characteristic, type: .read) {
-            print("[ios] resolving \(externalUuidString(characteristic.uuid)) (read)")
-            call.resolve(data)
-        }
-
-        if let call = popSavedCall(characteristic: characteristic, type: .write) {
-            print("[ios] resolving \(externalUuidString(characteristic.uuid)) (write)")
+        withSavedCall(characteristic: characteristic, type: .read) { call in
+            print("[ios] resolving \(charId) (read)")
             call.resolve(data)
         }
     }
@@ -712,11 +772,12 @@ extension BluetoothLEClient: CBPeripheralDelegate {
             return
         }
 
-        print("[iOS] wrote \(String(describing: characteristic.value)) to \(characteristic.uuid.uuidString)")
+        let charId = externalUuidString(characteristic.uuid);
 
+        print("[ios] wrote to \(charId)")
 
-        if let call = popSavedCall(characteristic: characteristic, type: .write) {
-            print("[ios] resolving \(externalUuidString(characteristic.uuid)) (write)")
+        withSavedCall(characteristic: characteristic, type: .write) { call in
+            print("[ios] resolving \(charId) (write) from didWrite")
             call.resolve()
         }
     }
