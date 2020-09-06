@@ -853,18 +853,19 @@ public class BluetoothLEClient extends Plugin {
 
         HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
 
-        if (connection != null) {
-          connection.put(keyOperationDisconnect, call);
-          BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
+        if (connection == null) {
 
-          if (gatt != null) {
-            gatt.disconnect();
-          }
+            JSObject ret = new JSObject();
+            addProperty(ret, keyDisconnected, true);
+            call.resolve(ret);
+
+            return;
         }
 
-        JSObject ret = new JSObject();
-        addProperty(ret, keyDisconnected, true);
-        call.resolve(ret);
+        connection.put(keyOperationDisconnect, call);
+
+        BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
+        gatt.disconnect();
     }
 
     @PluginMethod()
