@@ -622,12 +622,28 @@ extension BluetoothLEClient {
         return .success(data)
     }
 
+    // Special handling for arrays of UUIDs, because they can be strings or numbers
+    private func getUuidArray(_ call: CAPPluginCall, _ key: String, _ defaultValue: [CBUUID]? = nil) -> [CBUUID]? {
+        guard let rawValue = call.options[key] as? [AnyObject] else { return defaultValue }
+
+        return rawValue.compactMap { raw in
+            if let number = raw.integerValue {
+                return CBUUID(string: String(format: "%04X", number))
+            } else if let string = raw as? String {
+                return CBUUID(string: string)
+            } else {
+                return nil
+            }
+        }
+    }
+
+
     private func getUuids(_ call: CAPPluginCall, key: String) -> Result<[CBUUID], PluginError> {
-        guard let services = call.getArray(key, String.self) else {
+        guard let services = getUuidArray(call, key) else {
             return .failure(.missingParameter(.services))
         }
 
-        return .success(services.compactMap { CBUUID(string: $0) })
+        return .success(services)
     }
 
     private func externalUuidString(_ uuid: CBUUID) -> String {

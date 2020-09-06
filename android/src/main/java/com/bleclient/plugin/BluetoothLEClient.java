@@ -143,6 +143,7 @@ public class BluetoothLEClient extends Plugin {
 
     private BLEScanCallback scanCallback;
     private HashMap<String, Device> availableDevices = new HashMap<>();
+    private HashMap<String, Device> devicesPassingFilters = new HashMap<>();
     private HashMap<String, Object> connections = new HashMap<>();
 
     private enum BLECommandType {
@@ -180,17 +181,18 @@ public class BluetoothLEClient extends Plugin {
 
         Device(ScanResult result) {
             this(
-              result.getDevice(),
-              result.getScanRecord().getServiceUuids(),
-              new AdvertisementData(result.getScanRecord()),
-              result.getRssi());
+                    result.getDevice(),
+                    result.getScanRecord() == null ? new ArrayList<>() : result.getScanRecord().getServiceUuids(),
+                    new AdvertisementData(result.getScanRecord()),
+                    result.getRssi()
+            );
         }
 
         Device(BluetoothDevice device, List<ParcelUuid> serviceUuids, AdvertisementData advertisementData, int rssi) {
-          this.device = device;
-          this.serviceUuids = serviceUuids;
-          this.advertisementData = advertisementData;
-          this.rssi = rssi;
+            this.device = device;
+            this.serviceUuids = serviceUuids == null ? new ArrayList<>() : serviceUuids;
+            this.advertisementData = advertisementData;
+            this.rssi = rssi;
         }
 
         public int getBondState() { return this.device.getBondState(); }
@@ -203,6 +205,24 @@ public class BluetoothLEClient extends Plugin {
 
         public String getName() {
             return this.advertisementData.localName != null ? this.advertisementData.localName : this.device.getName();
+        }
+
+        public boolean advertisesServices(List<ParcelUuid> serviceUuids) {
+            List<ParcelUuid> services = this.serviceUuids;
+
+            if (serviceUuids.size() > 0) {
+                if (services == null) {
+                    return false;
+                }
+
+                for (ParcelUuid uuid : serviceUuids) {
+                    if (!services.contains(uuid)) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
 
         public Device merging(Device otherDevice) {
@@ -228,10 +248,9 @@ public class BluetoothLEClient extends Plugin {
         }
 
         public AdvertisementData merging(AdvertisementData other) {
-          String localName = other.localName == null ? this.localName : other.localName;
-          Map<ParcelUuid, byte[]> serviceData = new HashMap<>(this.serviceData);
-          serviceData.putAll(other.serviceData);
-          return new AdvertisementData(localName, serviceData);
+            String localName = other.localName == null ? this.localName : other.localName;
+            Map<ParcelUuid, byte[]> serviceData = other.serviceData.size() == 0 ? this.serviceData : other.serviceData;
+            return new AdvertisementData(localName, serviceData);
         }
     }
 
@@ -642,10 +661,6 @@ public class BluetoothLEClient extends Plugin {
 
             Device newDevice = new Device(result);
 
-            if (!this.deviceAdvertisesServices(newDevice, this.serviceUuids)) {
-              return;
-            }
-
             String address = newDevice.getAddress();
             Device existingDevice = availableDevices.get(address);
             Device device;
@@ -656,7 +671,17 @@ public class BluetoothLEClient extends Plugin {
               device = newDevice;
             }
 
+            // Store device regardless of whether it advertises the services we are looking for.
+            // This allows us to coalesce advertisements, some of which may not include the
+            // service UUIDs.
             availableDevices.put(address, device);
+
+            if (this.serviceUuids.size() > 0 && !device.advertisesServices(this.serviceUuids)) {
+                return;
+            }
+
+            devicesPassingFilters.put(address, device);
+
             JSObject payload = createBLEDeviceResult(device);
             notifyListeners(keyEventDeviceFound, payload);
 
@@ -672,23 +697,6 @@ public class BluetoothLEClient extends Plugin {
             Log.e(getLogTag(), "BLE scan failed with code " + errorCode);
         }
 
-        private boolean deviceAdvertisesServices(Device device, List<ParcelUuid> serviceUuids) {
-          List<ParcelUuid> services = device.serviceUuids;
-
-          if (serviceUuids.size() > 0) {
-            if (services == null) {
-              return false;
-            }
-
-            for (ParcelUuid uuid : serviceUuids) {
-              if (!services.contains(uuid)) {
-                return false;
-              }
-            }
-          }
-
-          return true;
-        }
     }
 
     private static class AnyUuid {
@@ -1715,7 +1723,7 @@ public class BluetoothLEClient extends Plugin {
 
         ArrayList<JSObject> scanResults = new ArrayList<>();
 
-        for (Map.Entry<String, Device> entry : availableDevices.entrySet()) {
+        for (Map.Entry<String, Device> entry : devicesPassingFilters.entrySet()) {
 
             Device record = entry.getValue();
             scanResults.add(createBLEDeviceResult(record));
@@ -1761,71 +1769,36 @@ public class BluetoothLEClient extends Plugin {
     }
 
     private List<UUID> getServiceUuids(JSArray serviceUuidArray) {
-
-
-        ArrayList<UUID> emptyList = new ArrayList<>();
+        ArrayList<UUID> list = new ArrayList<>();
 
         if (serviceUuidArray == null) {
-            return emptyList;
+            return list;
         }
+
+        List<Object> rawList;
 
         try {
-            return getServiceUuidsFromIntegers(serviceUuidArray);
-        } catch (Exception e) {
-            // fallthrough
+            rawList = serviceUuidArray.toList();
+        } catch(JSONException ex) {
+            Log.e(getLogTag(), ex.getMessage());
+            return new ArrayList<>();
         }
 
-        try {
-            return getServiceUuidsFromStrings(serviceUuidArray);
-        } catch (JSONException ee) {
-            Log.e(getLogTag(), "Error while converting JSArray to List");
-            return emptyList;
-        } catch (IllegalArgumentException eee) {
-            Log.e(getLogTag(), "Invalid uuid string");
-            return emptyList;
-        }
-    }
+        for (Object raw : rawList) {
+            UUID uuid = null;
 
-    private List<UUID> getServiceUuidsFromStrings(JSArray serviceUuidArray) throws JSONException {
-        List<UUID> serviceUuids = new ArrayList<>();
-        List<String> uuidList = serviceUuidArray.toList();
+            if (raw instanceof String) {
+                uuid = get128BitUUID((String) raw);
+            } else if (raw instanceof Integer) {
+                uuid = get128BitUUID((Integer) raw);
+            }
 
-        if (!(uuidList.size() > 0)) {
-            Log.i(getLogTag(), "No uuids given");
-            return serviceUuids;
-        }
-
-        for (String uuid : uuidList) {
-
-            UUID uuid128 = get128BitUUID(uuid);
-
-            if (uuid128 != null) {
-                serviceUuids.add(uuid128);
+            if (uuid != null) {
+                list.add(uuid);
             }
         }
 
-        return serviceUuids;
-    }
-
-    private List<UUID> getServiceUuidsFromIntegers(JSArray serviceUuidArray) throws JSONException {
-        List<UUID> serviceUuids = new ArrayList<>();
-        List<Integer> uuidList = serviceUuidArray.toList();
-
-        if (!(uuidList.size() > 0)) {
-            Log.i(getLogTag(), "No uuids given");
-            return serviceUuids;
-        }
-
-        for (Integer uuid : uuidList) {
-
-            UUID uuid128 = get128BitUUID(uuid);
-
-            if (uuid128 != null) {
-                serviceUuids.add(uuid128);
-            }
-        }
-
-        return serviceUuids;
+        return list;
     }
 
     private byte[] toByteArray(String base64Value) {
