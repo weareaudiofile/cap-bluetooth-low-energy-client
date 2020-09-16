@@ -1561,11 +1561,15 @@ public class BluetoothLEClient extends Plugin {
             bleScanner = bluetoothAdapter.getBluetoothLeScanner();
         }
 
-        bleScanner.flushPendingScanResults(scanCallback);
-        bleScanner.stopScan(scanCallback);
-
         JSObject ret = new JSObject();
-        ret.put(keyAvailableDevices, getScanResult());
+
+        if (scanCallback != null) {
+            bleScanner.flushPendingScanResults(scanCallback);
+            bleScanner.stopScan(scanCallback);
+            ret.put(keyAvailableDevices, getScanResult());
+        } else {
+            ret.put(keyAvailableDevices, new JSArray());
+        }
 
         PluginCall savedCall = getSavedCall();
         savedCall.resolve(ret);
