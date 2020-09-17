@@ -1572,6 +1572,11 @@ public class BluetoothLEClient extends Plugin {
         }
 
         PluginCall savedCall = getSavedCall();
+
+        if (savedCall == null) {
+            return;
+        }
+
         savedCall.resolve(ret);
         savedCall.release(getBridge());
     }
