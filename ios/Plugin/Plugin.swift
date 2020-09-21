@@ -627,10 +627,10 @@ extension BluetoothLEClient {
         guard let rawValue = call.options[key] as? [AnyObject] else { return defaultValue }
 
         return rawValue.compactMap { raw in
-            if let number = raw.integerValue {
-                return CBUUID(string: String(format: "%04X", number))
+            if let number = raw as? Int {
+                return makeUuid(number)
             } else if let string = raw as? String {
-                return CBUUID(string: string)
+                return makeUuid(string)
             } else {
                 return nil
             }
