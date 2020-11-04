@@ -26,6 +26,7 @@ extension String {
     static var isPrimary = "isPrimary"
     static var enabled = "enabled"
     static var localName = "localName"
+    static var manufacturerData = "manufacturerData"
     static var name = "name"
     static var notify = "notify"
     static var properties = "properties"
@@ -492,6 +493,14 @@ public class BluetoothLEClient: CAPPlugin {
             result[.localName] = localName
         }
 
+        if let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
+           manufacturerData.count > 2 {
+            let companyIdBytes = manufacturerData.subdata(in: 0..<2)
+            let companyId: Int = Int(companyIdBytes[1]) << 8 | Int(companyIdBytes[0])
+            let mfrData = manufacturerData.subdata(in: 2..<manufacturerData.count)
+            result[.manufacturerData] = serialize([companyId: mfrData])
+        }
+
         return result
     }
 
@@ -500,6 +509,16 @@ public class BluetoothLEClient: CAPPlugin {
 
         for (uuid, data) in dataMap {
             result[uuid.uuidString] = encodeToByteArray(data)
+        }
+
+        return result
+    }
+
+    private func serialize(_ mfrData: [Int: Data]) -> PluginResultData {
+        var result: PluginResultData = [:]
+
+        for (companyId, data) in mfrData {
+            result[String(companyId, radix: 16)] = encodeToByteArray(data)
         }
 
         return result

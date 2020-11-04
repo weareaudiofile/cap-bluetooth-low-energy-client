@@ -25,6 +25,7 @@ import android.os.Looper;
 import android.os.ParcelUuid;
 import android.util.Base64;
 import android.util.Log;
+import android.util.SparseArray;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -96,6 +97,7 @@ public class BluetoothLEClient extends Plugin {
     static final String keyRssi = "rssi";
     static final String keyAdvertisementData = "advertisementData";
     static final String keyLocalName = "localName";
+    static final String keyManufacturerData = "manufacturerData";
     static final String keyServiceData = "serviceData";
     static final String keyCharacterisicDescripors = "descriptors";
     static final String keyCharacteristicProperies = "properties";
@@ -237,20 +239,23 @@ public class BluetoothLEClient extends Plugin {
     private static final class AdvertisementData {
         String localName;
         Map<ParcelUuid, byte[]> serviceData;
+        SparseArray<byte[]> manufacturerData;
 
         AdvertisementData(ScanRecord scanRecord) {
-          this(scanRecord.getDeviceName(), scanRecord.getServiceData());
+          this(scanRecord.getDeviceName(), scanRecord.getServiceData(), scanRecord.getManufacturerSpecificData());
         }
 
-        AdvertisementData(String localName, Map<ParcelUuid, byte[]> serviceData) {
+        AdvertisementData(String localName, Map<ParcelUuid, byte[]> serviceData, SparseArray<byte[]> manufacturerData) {
           this.localName = localName;
           this.serviceData = serviceData;
+          this.manufacturerData = manufacturerData;
         }
 
         public AdvertisementData merging(AdvertisementData other) {
             String localName = other.localName == null ? this.localName : other.localName;
             Map<ParcelUuid, byte[]> serviceData = other.serviceData.size() == 0 ? this.serviceData : other.serviceData;
-            return new AdvertisementData(localName, serviceData);
+            SparseArray<byte[]> manufacturerData = other.manufacturerData.size() == 0 ? this.manufacturerData :  other.manufacturerData;
+            return new AdvertisementData(localName, serviceData, manufacturerData);
         }
     }
 
@@ -1596,22 +1601,36 @@ public class BluetoothLEClient extends Plugin {
     }
 
     private JSObject createJSObjectFromServiceData(Map<ParcelUuid, byte[]> map) {
-      JSObject ret = new JSObject();
+    JSObject ret = new JSObject();
 
-      for (Map.Entry<ParcelUuid, byte[]> entry : map.entrySet()) {
-        String key = entry.getKey().toString();
-        JSArray value = jsByteArray(entry.getValue());
-        addProperty(ret, key, value);
-      }
-
-      return ret;
+    for (Map.Entry<ParcelUuid, byte[]> entry : map.entrySet()) {
+      String key = entry.getKey().toString();
+      JSArray value = jsByteArray(entry.getValue());
+      addProperty(ret, key, value);
     }
+
+    return ret;
+  }
+
+  private JSObject createJSObjectFromManufacturerData(SparseArray<byte[]> data) {
+    JSObject ret = new JSObject();
+
+    int size = data.size();
+    for (int i = 0; i < size; i++) {
+      String key = Integer.toHexString(data.keyAt(i));
+      JSArray value = jsByteArray(data.valueAt(i));
+      addProperty(ret, key, value);
+    }
+
+    return ret;
+  }
 
     private JSObject createJSAdvertisementData(AdvertisementData adData) {
       JSObject ret = new JSObject();
 
       String localName = adData.localName;
       Map<ParcelUuid, byte[]> serviceData = adData.serviceData;
+      SparseArray<byte[]> manufacturerData = adData.manufacturerData;
 
       if (localName != null) {
         addProperty(ret, keyLocalName, localName);
@@ -1620,6 +1639,11 @@ public class BluetoothLEClient extends Plugin {
       if (serviceData != null) {
         JSObject data = createJSObjectFromServiceData(serviceData);
         addProperty(ret, keyServiceData, data);
+      }
+
+      if (manufacturerData != null) {
+        JSObject data = createJSObjectFromManufacturerData(manufacturerData);
+        addProperty(ret, keyManufacturerData, data);
       }
 
       return ret;

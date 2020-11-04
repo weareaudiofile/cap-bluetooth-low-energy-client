@@ -53,8 +53,8 @@ export interface BluetoothLEClientPlugin extends WebPlugin{
 
 export type BluetoothGATTService = BluetoothGATTServices | number | string;
 export type BluetoothGATTCharacteristic = BluetoothGATTCharacteristics | number | string;
-export type BluetoothGATTAdvertisementDataKey = "localName" | "serviceData";
-export type BluetoothGATTAdvertisementDataValue = string | Record<BluetoothGATTService, BluetoothGATTByteData>
+export type BluetoothGATTAdvertisementDataKey = "localName" | "serviceData" | "manufacturerData";
+export type BluetoothGATTAdvertisementDataValue = string | Record<BluetoothGATTService, BluetoothGATTByteData> | Record<string, BluetoothGATTByteData>;
 export type BluetoothGATTAdvertisementData = Partial<Record<BluetoothGATTAdvertisementDataKey, BluetoothGATTAdvertisementDataValue>>;
 
 export interface BluetoothGATTAvailabilityResult{
