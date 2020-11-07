@@ -110,8 +110,11 @@ export class BluetoothLEClientWeb extends WebPlugin implements BluetoothLEClient
     const optionalServices: BluetoothGATTService[] = options.optionalServices || [];
 
     try {
-
-      const device = await nav.bluetooth.requestDevice({filters, optionalServices, acceptAllDevices: false});
+      const device = await nav.bluetooth.requestDevice({
+        ...(filters.length > 0 && { filters }),
+        ...(optionalServices.length > 0 && {optionalServices}),
+        acceptAllDevices: filters.length === 0
+      });
       const {id, name} = device;
       this.devices.set(id, device);
 
