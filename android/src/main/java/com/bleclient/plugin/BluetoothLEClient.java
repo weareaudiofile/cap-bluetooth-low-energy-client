@@ -1617,7 +1617,7 @@ public class BluetoothLEClient extends Plugin {
 
     int size = data.size();
     for (int i = 0; i < size; i++) {
-      String key = Integer.toHexString(data.keyAt(i));
+      String key = String.format("%04x", 0xffff & data.keyAt(i));
       JSArray value = jsByteArray(data.valueAt(i));
       addProperty(ret, key, value);
     }

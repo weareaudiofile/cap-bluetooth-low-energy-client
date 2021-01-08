@@ -518,7 +518,7 @@ public class BluetoothLEClient: CAPPlugin {
         var result: PluginResultData = [:]
 
         for (companyId, data) in mfrData {
-            result[String(companyId, radix: 16)] = encodeToByteArray(data)
+            result[String(format: "%04x", 0xffff & companyId)] = encodeToByteArray(data)
         }
 
         return result
