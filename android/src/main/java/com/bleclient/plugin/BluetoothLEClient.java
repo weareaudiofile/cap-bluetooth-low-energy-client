@@ -813,8 +813,8 @@ public class BluetoothLEClient extends Plugin {
 
         if(connection != null){
 
-            boolean isAlreadyConnected = (Integer) connection.get(keyConnectionState) == BluetoothProfile.STATE_CONNECTED;
-            boolean servicesDiscovered = (Integer) connection.get(keyDiscovered) == SERVICES_DISCOVERED;
+            boolean isAlreadyConnected = (Integer) this.getOrDefault(connection, keyConnectionState, BluetoothProfile.STATE_DISCONNECTED) == BluetoothProfile.STATE_CONNECTED;
+            boolean servicesDiscovered = (Integer) this.getOrDefault(connection, keyDiscovered, SERVICES_UNDISCOVERED) == SERVICES_DISCOVERED;
 
             if(isAlreadyConnected && servicesDiscovered ){
                 JSObject ret = new JSObject();
@@ -838,6 +838,7 @@ public class BluetoothLEClient extends Plugin {
 
 
         HashMap<String, Object> con = new HashMap<>();
+        con.put(keyConnectionState, BluetoothProfile.STATE_DISCONNECTED);
         con.put(keyDiscovered, SERVICES_UNDISCOVERED);
         con.put(keyOperationConnect, call);
 
@@ -1904,6 +1905,19 @@ public class BluetoothLEClient extends Plugin {
         String uuidString = uuid.toString();
         int hexUuid = Integer.parseInt(uuidString.substring(4, 8), 16);
         return hexUuid;
+
+    private <K, V> V getOrDefault(HashMap<K, V> map, K key, V defaultValue) {
+        if (map.containsKey(key)) {
+          V value = map.get(key);
+
+          if (value == null) {
+            return defaultValue;
+          } else {
+            return value;
+          }
+        } else {
+          return defaultValue;
+        }
     }
 
     private void addProperty(JSObject obj, String key, Object value) {
