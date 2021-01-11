@@ -145,19 +145,19 @@ public class BluetoothLEClient extends Plugin {
 
     private BLEScanCallback scanCallback;
     private HashMap<String, Device> availableDevices = new HashMap<>();
-    private HashMap<String, Device> devicesPassingFilters = new HashMap<>();
-    private HashMap<String, HashMap<String, Object>> connections = new HashMap<>();
+    private final HashMap<String, Device> devicesPassingFilters = new HashMap<>();
+    private final HashMap<String, HashMap<String, Object>> connections = new HashMap<>();
 
     private enum BLECommandType {
         write, read, discoverServices
     }
 
     private static final class BLECommand {
-        BLECommandType type;
-        BluetoothGatt gatt;
-        BluetoothGattCharacteristic characteristic;
-        PluginCall call;
-        byte[] data;
+        final BLECommandType type;
+        final BluetoothGatt gatt;
+        final BluetoothGattCharacteristic characteristic;
+        final PluginCall call;
+        final byte[] data;
 
         BLECommand(PluginCall call, BLECommandType type, BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] data) {
             this.call = call;
@@ -168,18 +168,18 @@ public class BluetoothLEClient extends Plugin {
         }
     }
 
-    private ConcurrentLinkedQueue<BLECommand> queue = new ConcurrentLinkedQueue<>();
-    Handler commandHandler = new Handler(Looper.getMainLooper());
+    private final ConcurrentLinkedQueue<BLECommand> queue = new ConcurrentLinkedQueue<>();
+    final Handler commandHandler = new Handler(Looper.getMainLooper());
     BLECommand commandInProgress;
     private Boolean queueIsBusy() {
         return commandInProgress != null;
     }
 
     private static final class Device {
-        BluetoothDevice device;
-        List<ParcelUuid> serviceUuids;
-        AdvertisementData advertisementData;
-        int rssi;
+        final BluetoothDevice device;
+        final List<ParcelUuid> serviceUuids;
+        final AdvertisementData advertisementData;
+        final int rssi;
 
         Device(ScanResult result) {
             this(
@@ -237,9 +237,9 @@ public class BluetoothLEClient extends Plugin {
     }
 
     private static final class AdvertisementData {
-        String localName;
-        Map<ParcelUuid, byte[]> serviceData;
-        SparseArray<byte[]> manufacturerData;
+        final String localName;
+        final Map<ParcelUuid, byte[]> serviceData;
+        final SparseArray<byte[]> manufacturerData;
 
         AdvertisementData(ScanRecord scanRecord) {
           this(scanRecord.getDeviceName(), scanRecord.getServiceData(), scanRecord.getManufacturerSpecificData());
@@ -259,7 +259,7 @@ public class BluetoothLEClient extends Plugin {
         }
     }
 
-    private BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
+    private final BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
         @Override
         public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
             super.onPhyUpdate(gatt, txPhy, rxPhy, status);
@@ -276,7 +276,7 @@ public class BluetoothLEClient extends Plugin {
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
 
-            HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+            HashMap<String, Object> connection = connections.get(address);
 
             if (connection == null) {
                 return;
@@ -409,7 +409,7 @@ public class BluetoothLEClient extends Plugin {
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
 
-            HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+            HashMap<String, Object> connection = connections.get(address);
 
             if (connection == null) {
                 Log.e(getLogTag(), "No connection");
@@ -455,7 +455,7 @@ public class BluetoothLEClient extends Plugin {
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
 
-            HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+            HashMap<String, Object> connection = connections.get(address);
 
             if (connection == null) {
                 Log.e(getLogTag(), "No connection found");
@@ -506,7 +506,7 @@ public class BluetoothLEClient extends Plugin {
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
 
-            HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+            HashMap<String, Object> connection = connections.get(address);
 
             if (connection == null) {
                 Log.e(getLogTag(), "No connection found");
@@ -557,7 +557,7 @@ public class BluetoothLEClient extends Plugin {
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
 
-            HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+            HashMap<String, Object> connection = connections.get(address);
 
             if (connection == null) {
                 return;
@@ -591,7 +591,7 @@ public class BluetoothLEClient extends Plugin {
             BluetoothDevice device = gatt.getDevice();
             String address = device.getAddress();
 
-            HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+            HashMap<String, Object> connection = connections.get(address);
 
             if (connection == null) {
                 return;
@@ -638,11 +638,11 @@ public class BluetoothLEClient extends Plugin {
     };
 
     private class BLEScanCallback extends ScanCallback {
-        private Runnable timeoutCallback;
-        private Integer timeout;
-        private Boolean stopOnFirstResult;
-        private Handler handler;
-        private List<ParcelUuid> serviceUuids;
+        private final Runnable timeoutCallback;
+        private final Integer timeout;
+        private final Boolean stopOnFirstResult;
+        private final Handler handler;
+        private final List<ParcelUuid> serviceUuids;
 
         public BLEScanCallback(List<UUID> serviceUuids, Runnable timeoutCallback, Integer timeout, Boolean stopOnFirstResult) {
             this.timeoutCallback = timeoutCallback;
@@ -814,7 +814,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if(connection != null){
 
@@ -870,7 +870,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
 
@@ -900,7 +900,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -925,7 +925,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -1025,7 +1025,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -1119,7 +1119,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -1178,7 +1178,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -1255,7 +1255,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -1333,7 +1333,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -1371,7 +1371,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -1412,7 +1412,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
@@ -1464,7 +1464,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        HashMap<String, Object> connection = (HashMap<String, Object>) connections.get(address);
+        HashMap<String, Object> connection = connections.get(address);
 
         if (connection == null) {
             call.reject(keyErrorNotConnected);
