@@ -326,7 +326,7 @@ public class BluetoothLEClient extends Plugin {
                         for (Object value : connection.values()) {
                             if (value instanceof PluginCall) {
                                 PluginCall storedCall = (PluginCall) value;
-                                storedCall.error(keyErrorValueDisconnected);
+                                storedCall.reject(keyErrorValueDisconnected);
                             }
                         }
 
@@ -350,7 +350,7 @@ public class BluetoothLEClient extends Plugin {
                     for (Object value : connection.values()) {
                         if (value instanceof PluginCall) {
                             PluginCall storedCall = (PluginCall) value;
-                            storedCall.error(keyErrorValueDisconnected);
+                            storedCall.reject(keyErrorValueDisconnected);
                         }
                     }
 
@@ -362,7 +362,7 @@ public class BluetoothLEClient extends Plugin {
                     PluginCall call = (PluginCall) connection.get(keyOperationConnect);
 
                     if (call != null) {
-                        call.error("Unable to connect to Peripheral");
+                        call.reject("Unable to connect to Peripheral");
                         connection.remove(keyOperationConnect);
                     }
 
@@ -371,7 +371,7 @@ public class BluetoothLEClient extends Plugin {
                     PluginCall call = (PluginCall) connection.get(keyOperationDisconnect);
 
                     if (call != null) {
-                        call.error("Unable to disconnect from Peripheral");
+                        call.reject("Unable to disconnect from Peripheral");
                         connection.remove(keyOperationDisconnect);
                     }
 
@@ -380,7 +380,7 @@ public class BluetoothLEClient extends Plugin {
                     PluginCall call = (PluginCall) connection.get(keyOperationDiscover);
 
                     if (call != null) {
-                        call.error("Unable to discover services for Peripheral");
+                        call.reject("Unable to discover services for Peripheral");
                         connection.remove(keyOperationDiscover);
                     }
                 } else {
@@ -432,7 +432,7 @@ public class BluetoothLEClient extends Plugin {
                 addProperty(ret, keyDiscoveryState, true);
                 call.resolve(ret);
             } else {
-                call.error("Service discovery unsuccessful");
+                call.reject("Service discovery unsuccessful");
             }
 
             commandInProgress = null;
@@ -478,7 +478,7 @@ public class BluetoothLEClient extends Plugin {
                 addProperty(ret, keyValue, jsByteArray(characteristicValue));
                 call.resolve(ret);
             } else {
-                call.error(keyErrorValueRead);
+                call.reject(keyErrorValueRead);
             }
 
             commandInProgress = null;
@@ -526,7 +526,7 @@ public class BluetoothLEClient extends Plugin {
                 addProperty(ret, keyValue, jsByteArray(value));
                 commandInProgress.call.resolve(ret);
             } else {
-                call.error(keyErrorValueWrite);
+                call.reject(keyErrorValueWrite);
             }
         }
 
@@ -578,7 +578,7 @@ public class BluetoothLEClient extends Plugin {
 
                 call.resolve(ret);
             } else {
-                call.error(keyErrorValueRead);
+                call.reject(keyErrorValueRead);
             }
 
             connection.remove(keyOperationReadDescriptor);
@@ -613,7 +613,7 @@ public class BluetoothLEClient extends Plugin {
                 call.resolve(ret);
 
             } else {
-                call.error(keyErrorValueWrite);
+                call.reject(keyErrorValueWrite);
             }
 
             connection.remove(keyOperationWriteDescriptor);
@@ -1549,7 +1549,7 @@ public class BluetoothLEClient extends Plugin {
 
             } catch (Exception e) {
                 Log.d(getLogTag(), e.getMessage());
-                command.call.error("Failed to start service discovery");
+                command.call.reject("Error starting service discovery", e);
             }
         };
     }
@@ -1560,11 +1560,11 @@ public class BluetoothLEClient extends Plugin {
                 boolean success = command.gatt.readCharacteristic(command.characteristic);
 
                 if (!success) {
-                    command.call.error(keyErrorValueRead);
+                    command.call.reject(keyErrorValueRead);
                 }
             } catch (Exception e) {
                 Log.d(getLogTag(), e.getMessage());
-                command.call.error(keyErrorValueRead);
+                command.call.reject(keyErrorValueRead, e);
             }
         };
     }
@@ -1585,14 +1585,14 @@ public class BluetoothLEClient extends Plugin {
                 boolean success = command.gatt.writeCharacteristic(command.characteristic);
 
                 if (!success) {
-                    command.call.error(keyErrorValueWrite);
+                    command.call.reject(keyErrorValueWrite);
                     completedCommand();
                 }
 
                 // call resolved in onCharacteristicWrite()
             } catch (Exception e) {
                 Log.e(getLogTag(), e.getMessage());
-                command.call.error(keyErrorValueWrite);
+                command.call.reject(keyErrorValueWrite, e);
                 completedCommand();
             }
         };
