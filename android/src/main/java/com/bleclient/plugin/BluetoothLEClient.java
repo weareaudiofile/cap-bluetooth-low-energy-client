@@ -1756,9 +1756,9 @@ public class BluetoothLEClient extends Plugin {
     private JSArray getScanResult() {
 
         ArrayList<JSObject> scanResults = new ArrayList<>();
+        HashMap<String, Device> found = new HashMap<>(devicesPassingFilters);
 
-        for (Map.Entry<String, Device> entry : devicesPassingFilters.entrySet()) {
-
+        for (Map.Entry<String, Device> entry : found.entrySet()) {
             Device record = entry.getValue();
             scanResults.add(createBLEDeviceResult(record));
         }
