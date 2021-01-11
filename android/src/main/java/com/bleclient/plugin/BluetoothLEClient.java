@@ -90,7 +90,7 @@ public class BluetoothLEClient extends Plugin {
     static final String keyTimeout = "timeout";
     static final String keyStopOnFirstResult = "stopOnFirstResult";
     static final String keyDiscoveryState = "discovered";
-    static final String keySuccess = "success";
+//    static final String keySuccess = "success";
     static final String keyDeviceType = "type";
     static final String keyBondState = "bondState";
     static final String keyDeviceName = "name";
@@ -130,8 +130,8 @@ public class BluetoothLEClient extends Plugin {
     static final String keyOperationDiscover = "discoverCallback";
     static final String keyOperationReadDescriptor = "readDescriptorCallback";
     static final String keyOperationWriteDescriptor = "writeDescriptorCallback";
-    static final String keyOperationRead = "readCharacteristicCallback";
-    static final String keyOperationWrite = "writeCharacteristicCallback";
+//    static final String keyOperationRead = "readCharacteristicCallback";
+//    static final String keyOperationWrite = "writeCharacteristicCallback";
 
     private static final String keyEventDeviceDisconnected = "deviceDisconnected";
     private static final String keyEventDeviceFound = "deviceFound";
@@ -146,13 +146,13 @@ public class BluetoothLEClient extends Plugin {
     private BLEScanCallback scanCallback;
     private HashMap<String, Device> availableDevices = new HashMap<>();
     private HashMap<String, Device> devicesPassingFilters = new HashMap<>();
-    private HashMap<String, Object> connections = new HashMap<>();
+    private HashMap<String, HashMap<String, Object>> connections = new HashMap<>();
 
     private enum BLECommandType {
         write, read, discoverServices
     }
 
-    private final class BLECommand {
+    private static final class BLECommand {
         BLECommandType type;
         BluetoothGatt gatt;
         BluetoothGattCharacteristic characteristic;
@@ -168,7 +168,7 @@ public class BluetoothLEClient extends Plugin {
         }
     }
 
-    private ConcurrentLinkedQueue<BLECommand> queue = new ConcurrentLinkedQueue<BLECommand>();
+    private ConcurrentLinkedQueue<BLECommand> queue = new ConcurrentLinkedQueue<>();
     Handler commandHandler = new Handler(Looper.getMainLooper());
     BLECommand commandInProgress;
     private Boolean queueIsBusy() {
@@ -361,23 +361,28 @@ public class BluetoothLEClient extends Plugin {
 
                     PluginCall call = (PluginCall) connection.get(keyOperationConnect);
 
-                    call.error("Unable to connect to Peripheral");
-                    connection.remove(keyOperationConnect);
+                    if (call != null) {
+                        call.error("Unable to connect to Peripheral");
+                        connection.remove(keyOperationConnect);
+                    }
 
                 } else if (connection.get(keyOperationDisconnect) != null) {
 
                     PluginCall call = (PluginCall) connection.get(keyOperationDisconnect);
 
-                    call.error("Unable to disconnect from Peripheral");
-                    connection.remove(keyOperationDisconnect);
+                    if (call != null) {
+                        call.error("Unable to disconnect from Peripheral");
+                        connection.remove(keyOperationDisconnect);
+                    }
 
                 } else if (connection.get(keyOperationDiscover) != null) {
 
                     PluginCall call = (PluginCall) connection.get(keyOperationDiscover);
 
-                    call.error("Unable to discover services for Peripheral");
-                    connection.remove(keyOperationDiscover);
-
+                    if (call != null) {
+                        call.error("Unable to discover services for Peripheral");
+                        connection.remove(keyOperationDiscover);
+                    }
                 } else {
 
                     Log.e(getLogTag(), "GATT operation unsuccessfull");
@@ -532,8 +537,6 @@ public class BluetoothLEClient extends Plugin {
             String address = device.getAddress();
 
             UUID characteristicUuid = characteristic.getUuid();
-
-            BluetoothGattService service = characteristic.getService();
 
             byte[] characteristicValue = characteristic.getValue();
 
@@ -729,11 +732,12 @@ public class BluetoothLEClient extends Plugin {
 
         if (getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             ret.put(keyAvailable, true);
-            call.resolve(ret);
         } else {
             ret.put(keyAvailable, false);
-            call.resolve(ret);
         }
+
+        call.resolve(ret);
+
     }
 
     @PluginMethod()
@@ -743,11 +747,12 @@ public class BluetoothLEClient extends Plugin {
 
         if (bluetoothAdapter.isEnabled()) {
             ret.put(keyEnabled, true);
-            call.resolve(ret);
         } else {
             ret.put(keyEnabled, false);
-            call.resolve(ret);
         }
+
+        call.resolve(ret);
+
     }
 
     @PluginMethod()
@@ -879,7 +884,10 @@ public class BluetoothLEClient extends Plugin {
         connection.put(keyOperationDisconnect, call);
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
-        gatt.disconnect();
+
+        if (gatt != null) {
+            gatt.disconnect();
+        }
     }
 
     @PluginMethod()
@@ -925,6 +933,11 @@ public class BluetoothLEClient extends Plugin {
         }
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
+
+        if  (gatt == null) {
+          call.reject(keyErrorNotConnected);
+          return;
+        }
 
         AnyUuid propertyService = getUuid(call, keyService);
 
@@ -973,7 +986,7 @@ public class BluetoothLEClient extends Plugin {
             return;
         }
 
-        boolean result = false;
+        boolean result;
 
 
         if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_NOTIFY) == BluetoothGattCharacteristic.PROPERTY_NOTIFY) {
@@ -1020,6 +1033,11 @@ public class BluetoothLEClient extends Plugin {
         }
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
+
+        if (gatt == null) {
+          call.reject(keyErrorNotConnected);
+          return;
+        }
 
         AnyUuid propertyService = getUuid(call, keyService);
 
@@ -1110,6 +1128,11 @@ public class BluetoothLEClient extends Plugin {
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
 
+        if (gatt == null) {
+            call.reject(keyErrorNotConnected);
+            return;
+        }
+
         AnyUuid propertyCharacteristic = getUuid(call, keyCharacteristic);
 
         if (!propertyCharacteristic.isValid) {
@@ -1123,7 +1146,6 @@ public class BluetoothLEClient extends Plugin {
             call.reject(keyErrorServiceMissing);
             return;
         }
-
 
         UUID service128BitUuid = get128BitUUID(propertyService);
         BluetoothGattService service = gatt.getService(service128BitUuid);
@@ -1164,6 +1186,11 @@ public class BluetoothLEClient extends Plugin {
         }
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
+
+        if (gatt == null) {
+            call.reject(keyErrorNotConnected);
+            return;
+        }
 
         AnyUuid propertyCharacteristic = getUuid(call, keyCharacteristic);
 
@@ -1236,6 +1263,11 @@ public class BluetoothLEClient extends Plugin {
         }
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
+
+        if (gatt == null) {
+            call.reject(keyErrorNotConnected);
+            return;
+        }
 
         AnyUuid propertyService = getUuid(call, keyService);
 
@@ -1310,6 +1342,11 @@ public class BluetoothLEClient extends Plugin {
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
 
+        if (gatt == null) {
+            call.reject(keyErrorNotConnected);
+            return;
+        }
+
         List<BluetoothGattService> services = gatt.getServices();
         ArrayList<JSObject> retServices = new ArrayList<>();
 
@@ -1342,6 +1379,11 @@ public class BluetoothLEClient extends Plugin {
         }
 
         BluetoothGatt peripheral = (BluetoothGatt) connection.get(keyPeripheral);
+
+        if (peripheral == null) {
+            call.reject(keyErrorNotConnected);
+            return;
+        }
 
         AnyUuid propertyService = getUuid(call, keyService);
 
@@ -1378,6 +1420,11 @@ public class BluetoothLEClient extends Plugin {
         }
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
+
+        if (gatt == null) {
+            call.reject(keyErrorNotConnected);
+            return;
+        }
 
         AnyUuid propertyService = getUuid(call, keyService);
 
@@ -1425,6 +1472,11 @@ public class BluetoothLEClient extends Plugin {
         }
 
         BluetoothGatt gatt = (BluetoothGatt) connection.get(keyPeripheral);
+
+        if (gatt == null) {
+            call.reject(keyErrorNotConnected);
+            return;
+        }
 
         AnyUuid propertyService = getUuid(call, keyService);
 
@@ -1487,70 +1539,61 @@ public class BluetoothLEClient extends Plugin {
     }
 
     private Runnable runnableDiscoverServicesCommand(BLECommand command) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    boolean discoveryStarted = command.gatt.discoverServices();
+        return () -> {
+            try {
+                boolean discoveryStarted = command.gatt.discoverServices();
 
-                    if (!discoveryStarted) {
-                        command.call.reject("Failed to start service discovery");
-                    }
-
-                } catch (Exception e) {
-                    Log.d(getLogTag(), e.getMessage());
-                    command.call.error("Failed to start service discovery");
+                if (!discoveryStarted) {
+                    command.call.reject("Failed to start service discovery");
                 }
+
+            } catch (Exception e) {
+                Log.d(getLogTag(), e.getMessage());
+                command.call.error("Failed to start service discovery");
             }
         };
     }
 
     private Runnable runnableReadCommand(BLECommand command) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    boolean success = command.gatt.readCharacteristic(command.characteristic);
+        return () -> {
+            try {
+                boolean success = command.gatt.readCharacteristic(command.characteristic);
 
-                    if (!success) {
-                        command.call.error(keyErrorValueRead);
-                    }
-                } catch (Exception e) {
-                    Log.d(getLogTag(), e.getMessage());
+                if (!success) {
                     command.call.error(keyErrorValueRead);
                 }
+            } catch (Exception e) {
+                Log.d(getLogTag(), e.getMessage());
+                command.call.error(keyErrorValueRead);
             }
         };
     }
 
     // TODO: Handle write with response
     private Runnable runnableWriteCommand(BLECommand command) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Log.d(getLogTag(), "writing data " + Arrays.toString(command.data));
-                    boolean valueSet = command.characteristic.setValue(command.data);
+        return () -> {
+            try {
+                Log.d(getLogTag(), "writing data " + Arrays.toString(command.data));
+                boolean valueSet = command.characteristic.setValue(command.data);
 
-                    if (!valueSet) {
-                        command.call.reject(keyErrorValueSet);
-                        completedCommand();
-                        return;
-                    }
+                if (!valueSet) {
+                    command.call.reject(keyErrorValueSet);
+                    completedCommand();
+                    return;
+                }
 
-                    boolean success = command.gatt.writeCharacteristic(command.characteristic);
+                boolean success = command.gatt.writeCharacteristic(command.characteristic);
 
-                    if (!success) {
-                        command.call.error(keyErrorValueWrite);
-                        completedCommand();
-                    }
-
-                    // call resolved in onCharacteristicWrite()
-                } catch (Exception e) {
-                    Log.e(getLogTag(), e.getMessage());
+                if (!success) {
                     command.call.error(keyErrorValueWrite);
                     completedCommand();
                 }
+
+                // call resolved in onCharacteristicWrite()
+            } catch (Exception e) {
+                Log.e(getLogTag(), e.getMessage());
+                command.call.error(keyErrorValueWrite);
+                completedCommand();
             }
         };
     }
@@ -1849,23 +1892,23 @@ public class BluetoothLEClient extends Plugin {
         return bytes;
     }
 
-    private byte[] toByteArray(JSArray arrayValue) {
-        if (arrayValue == null) {
-            return null;
-        }
-
-        byte[] bytes = new byte[arrayValue.length()];
-
-        for (int i=0; i<bytes.length; i++) {
-            try {
-                bytes[i] = (byte) arrayValue.get(i);
-            } catch (JSONException e) {
-                bytes[i] = 0;
-            }
-        }
-
-        return bytes;
-    }
+//    private byte[] toByteArray(JSArray arrayValue) {
+//        if (arrayValue == null) {
+//            return null;
+//        }
+//
+//        byte[] bytes = new byte[arrayValue.length()];
+//
+//        for (int i=0; i<bytes.length; i++) {
+//            try {
+//                bytes[i] = (byte) arrayValue.get(i);
+//            } catch (JSONException e) {
+//                bytes[i] = 0;
+//            }
+//        }
+//
+//        return bytes;
+//    }
 
     private UUID get128BitUUID(Integer uuid) {
 
@@ -1901,10 +1944,10 @@ public class BluetoothLEClient extends Plugin {
         return get128BitUUID(uuid.stringValue);
     }
 
-    private int get16BitUUID(UUID uuid) {
-        String uuidString = uuid.toString();
-        int hexUuid = Integer.parseInt(uuidString.substring(4, 8), 16);
-        return hexUuid;
+//    private int get16BitUUID(UUID uuid) {
+//        String uuidString = uuid.toString();
+//      return Integer.parseInt(uuidString.substring(4, 8), 16);
+//    }
 
     private <K, V> V getOrDefault(HashMap<K, V> map, K key, V defaultValue) {
         if (map.containsKey(key)) {
