@@ -1570,7 +1570,7 @@ public class BluetoothLEClient extends Plugin {
         JSObject ret = new JSObject();
 
         if (scanCallback != null) {
-            bleScanner.flushPendingScanResults(scanCallback);
+//            bleScanner.flushPendingScanResults(scanCallback);
             bleScanner.stopScan(scanCallback);
             ret.put(keyAvailableDevices, getScanResult());
         } else {
